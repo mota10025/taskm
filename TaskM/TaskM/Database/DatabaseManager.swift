@@ -17,6 +17,7 @@ final class DatabaseManager: Sendable {
         do {
             var config = Configuration()
             config.prepareDatabase { db in
+                try db.execute(sql: "PRAGMA foreign_keys=ON")
                 try db.execute(sql: "PRAGMA journal_mode=WAL")
                 try db.execute(sql: "PRAGMA busy_timeout=10000")
                 try db.execute(sql: "PRAGMA synchronous=NORMAL")

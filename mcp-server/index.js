@@ -9,6 +9,7 @@ const DB_PATH = path.join(os.homedir(), "workspace", "task", "tasks.db");
 
 // 永続接続（better-sqlite3は同期的なので並行ツール呼び出しは自動的に直列化される）
 const db = new Database(DB_PATH);
+db.pragma("foreign_keys = ON");
 db.pragma("journal_mode = WAL");
 db.pragma("busy_timeout = 10000");
 db.pragma("synchronous = NORMAL");
