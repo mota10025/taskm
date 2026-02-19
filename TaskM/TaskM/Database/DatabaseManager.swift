@@ -15,7 +15,13 @@ final class DatabaseManager: Sendable {
 
     private init() {
         do {
-            dbPool = try DatabasePool(path: Self.dbPath)
+            var config = Configuration()
+            config.prepareDatabase { db in
+                try db.execute(sql: "PRAGMA journal_mode=WAL")
+                try db.execute(sql: "PRAGMA busy_timeout=10000")
+                try db.execute(sql: "PRAGMA synchronous=NORMAL")
+            }
+            dbPool = try DatabasePool(path: Self.dbPath, configuration: config)
         } catch {
             fatalError("Cannot open database at \(Self.dbPath): \(error)")
         }

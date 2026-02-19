@@ -1,46 +1,44 @@
 import Foundation
 
 final class DatabaseFileWatcher: @unchecked Sendable {
-    private var sources: [DispatchSourceFileSystemObject] = []
-    private var fileDescriptors: [Int32] = []
+    private var source: DispatchSourceFileSystemObject?
+    private var fileDescriptor: Int32 = -1
 
     init(dbPath: String, onChange: @escaping @Sendable () -> Void) {
-        let paths = [dbPath, "\(dbPath)-wal"]
         var lastNotification = Date.distantPast
         let lock = NSLock()
 
-        for path in paths {
-            let fd = open(path, O_EVTONLY)
-            guard fd >= 0 else { continue }
-            fileDescriptors.append(fd)
+        let notify = {
+            lock.lock()
+            let now = Date()
+            let shouldNotify = now.timeIntervalSince(lastNotification) > 1.0
+            if shouldNotify { lastNotification = now }
+            lock.unlock()
+            if shouldNotify {
+                DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.1) {
+                    onChange()
+                }
+            }
+        }
 
+        // DBファイルではなくディレクトリを監視（DBファイルへのfdを保持しない）
+        let dirPath = (dbPath as NSString).deletingLastPathComponent
+        let fd = open(dirPath, O_EVTONLY)
+        if fd >= 0 {
+            fileDescriptor = fd
             let source = DispatchSource.makeFileSystemObjectSource(
                 fileDescriptor: fd,
-                eventMask: [.write, .rename, .extend],
+                eventMask: [.write],
                 queue: .global(qos: .utility)
             )
-
-            source.setEventHandler {
-                lock.lock()
-                let now = Date()
-                let shouldNotify = now.timeIntervalSince(lastNotification) > 0.3
-                if shouldNotify { lastNotification = now }
-                lock.unlock()
-                if shouldNotify { onChange() }
-            }
-
-            source.setCancelHandler {
-                close(fd)
-            }
-
+            source.setEventHandler { notify() }
+            source.setCancelHandler { close(fd) }
             source.resume()
-            sources.append(source)
+            self.source = source
         }
     }
 
     deinit {
-        for source in sources {
-            source.cancel()
-        }
+        source?.cancel()
     }
 }

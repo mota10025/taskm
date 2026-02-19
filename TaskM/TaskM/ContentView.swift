@@ -27,12 +27,12 @@ struct ContentView: View {
                     // ヘッダー
                     HStack {
                         Text("TaskM")
-                            .font(.system(size: 16, weight: .bold))
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
                         Spacer()
                         if let error = viewModel.errorMessage {
                             Text(error)
-                                .font(.system(size: 11))
+                                .font(.system(size: 13))
                                 .foregroundColor(Color(hex: 0xf04438))
                                 .lineLimit(1)
                         }

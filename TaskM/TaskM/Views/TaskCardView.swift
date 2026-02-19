@@ -7,38 +7,30 @@ struct TaskCardView: View {
     @State private var isExpanded = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(task.name)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.white)
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(Color(hex: 0xe8e8e8))
                 .lineLimit(2)
 
             HStack(spacing: 6) {
                 if let priority = task.taskPriority {
                     Text(priority.rawValue)
-                        .font(.system(size: 10, weight: .bold))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(AppColors.priorityColor(priority).opacity(0.15))
-                        .foregroundColor(AppColors.priorityColor(priority))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(AppColors.priorityColor(priority).opacity(0.3), lineWidth: 1)
-                        )
+                        .font(.system(size: 12, weight: .bold))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppColors.priorityColor(priority))
+                        .foregroundColor(Color(hex: 0x2a2a2a))
                         .cornerRadius(4)
                 }
 
                 if let category = task.taskCategory {
                     Text(category.rawValue)
-                        .font(.system(size: 10))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(AppColors.categoryColor(category).opacity(0.1))
-                        .foregroundColor(AppColors.categoryColor(category))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(AppColors.categoryColor(category).opacity(0.3), lineWidth: 1)
-                        )
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(AppColors.categoryColor(category))
+                        .foregroundColor(Color(hex: 0x2a2a2a))
                         .cornerRadius(4)
                 }
 
@@ -46,7 +38,7 @@ struct TaskCardView: View {
 
                 if task.hasMemo {
                     Image(systemName: "doc.text")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12))
                         .foregroundColor(.gray)
                 }
             }
@@ -54,20 +46,20 @@ struct TaskCardView: View {
             if let dueDate = task.dueDate {
                 HStack(spacing: 4) {
                     Image(systemName: "calendar")
-                        .font(.system(size: 10))
+                        .font(.system(size: 12, weight: task.isOverdue ? .bold : .regular))
                     Text(dueDate.replacingOccurrences(of: "-", with: "/"))
-                        .font(.system(size: 11))
+                        .font(.system(size: 13, weight: task.isOverdue ? .bold : .regular))
                 }
-                .foregroundColor(task.isOverdue ? Color(hex: 0xf04438) : .gray)
+                .foregroundColor(task.isOverdue ? Color(hex: 0xe8c84a) : Color(hex: 0xcccccc))
             }
 
             if !subtasks.isEmpty {
                 Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isExpanded.toggle() } }) {
                     HStack(spacing: 4) {
                         Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 9))
-                        Text("サブタスク (\(completedCount)/\(subtasks.count))")
                             .font(.system(size: 11))
+                        Text("サブタスク (\(completedCount)/\(subtasks.count))")
+                            .font(.system(size: 13))
                     }
                     .foregroundColor(.gray)
                 }
@@ -84,7 +76,7 @@ struct TaskCardView: View {
                 }
             }
         }
-        .padding(10)
+        .padding(12)
         .background(AppColors.cardBackground)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
