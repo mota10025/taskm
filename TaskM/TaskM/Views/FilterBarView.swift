@@ -6,9 +6,9 @@ struct FilterBarView: View {
     var body: some View {
         HStack(spacing: 12) {
             // 優先度フィルタ
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text("優先度")
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.gray)
                 ForEach(TaskPriority.allCases, id: \.self) { priority in
                     FilterChip(
@@ -26,13 +26,13 @@ struct FilterBarView: View {
             }
 
             Divider()
-                .frame(height: 16)
+                .frame(height: 20)
                 .background(Color.white.opacity(0.15))
 
             // カテゴリフィルタ
-            HStack(spacing: 4) {
+            HStack(spacing: 6) {
                 Text("カテゴリ")
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.gray)
                 ForEach(TaskCategory.allCases, id: \.self) { category in
                     FilterChip(
@@ -54,11 +54,11 @@ struct FilterBarView: View {
             // クリアボタン
             if viewModel.isFilterActive {
                 Button(action: { viewModel.clearFilters() }) {
-                    HStack(spacing: 3) {
+                    HStack(spacing: 4) {
                         Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 10))
+                            .font(.system(size: 12))
                         Text("クリア")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                     }
                     .foregroundColor(.gray)
                 }
@@ -79,16 +79,16 @@ private struct FilterChip: View {
     var body: some View {
         Button(action: action) {
             Text(label)
-                .font(.system(size: 10, weight: isSelected ? .bold : .regular))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 3)
-                .background(isSelected ? color.opacity(0.2) : Color.white.opacity(0.05))
-                .foregroundColor(isSelected ? color : .gray)
+                .font(.system(size: 13, weight: isSelected ? .bold : .medium))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(isSelected ? color.opacity(0.25) : Color(hex: 0x3a3a3a))
+                .foregroundColor(isSelected ? color : Color(hex: 0xcccccc))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 4)
-                        .stroke(isSelected ? color.opacity(0.5) : Color.clear, lineWidth: 1)
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(isSelected ? color.opacity(0.6) : Color(hex: 0x555555), lineWidth: 1)
                 )
-                .cornerRadius(4)
+                .cornerRadius(5)
         }
         .buttonStyle(.plain)
     }

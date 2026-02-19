@@ -20,7 +20,8 @@ DerivedData/
 # Swift Package Manager
 .build/
 
-# SQLite runtime files
+# SQLite database & runtime files
+tasks.db
 *.db-shm
 *.db-wal
 

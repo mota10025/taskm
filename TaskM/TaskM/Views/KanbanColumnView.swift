@@ -15,16 +15,16 @@ struct KanbanColumnView: View {
             HStack(spacing: 8) {
                 Circle()
                     .fill(AppColors.statusColor(status))
-                    .frame(width: 8, height: 8)
+                    .frame(width: 10, height: 10)
 
                 Text(status.rawValue)
-                    .font(.system(size: 13, weight: .semibold))
+                    .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.white)
 
                 Text("\(tasks.count)")
-                    .font(.system(size: 11))
+                    .font(.system(size: 13))
                     .foregroundColor(.gray)
-                    .padding(.horizontal, 6)
+                    .padding(.horizontal, 7)
                     .padding(.vertical, 2)
                     .background(Color.white.opacity(0.08))
                     .cornerRadius(8)
@@ -75,9 +75,9 @@ struct KanbanColumnView: View {
                 Button(action: { showAddForm = true }) {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
-                            .font(.system(size: 11))
+                            .font(.system(size: 13))
                         Text("新規タスク")
-                            .font(.system(size: 12))
+                            .font(.system(size: 14))
                     }
                     .foregroundColor(.gray)
                     .frame(maxWidth: .infinity, alignment: .leading)

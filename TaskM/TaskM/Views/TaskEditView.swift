@@ -87,21 +87,41 @@ struct TaskEditView: View {
                                 .font(.system(size: 11))
                                 .foregroundColor(.gray)
                             HStack {
-                                TextField("YYYY-MM-DD", text: Binding(
-                                    get: { viewModel.task.dueDate ?? "" },
-                                    set: { viewModel.task.dueDate = $0.isEmpty ? nil : $0 }
-                                ))
-                                .textFieldStyle(.plain)
-                                .padding(8)
-                                .background(Color.white.opacity(0.05))
-                                .cornerRadius(6)
-                                .foregroundColor(.white)
-                                .frame(width: 140)
-
                                 if viewModel.task.dueDate != nil {
+                                    DatePicker("", selection: Binding(
+                                        get: {
+                                            let formatter = DateFormatter()
+                                            formatter.dateFormat = "yyyy-MM-dd"
+                                            return formatter.date(from: viewModel.task.dueDate ?? "") ?? Date()
+                                        },
+                                        set: {
+                                            let formatter = DateFormatter()
+                                            formatter.dateFormat = "yyyy-MM-dd"
+                                            viewModel.task.dueDate = formatter.string(from: $0)
+                                        }
+                                    ), displayedComponents: .date)
+                                    .labelsHidden()
+
                                     Button(action: { viewModel.task.dueDate = nil }) {
                                         Image(systemName: "xmark.circle.fill")
                                             .foregroundColor(.gray)
+                                    }
+                                    .buttonStyle(.plain)
+                                } else {
+                                    Button(action: {
+                                        let formatter = DateFormatter()
+                                        formatter.dateFormat = "yyyy-MM-dd"
+                                        viewModel.task.dueDate = formatter.string(from: Date())
+                                    }) {
+                                        HStack(spacing: 4) {
+                                            Image(systemName: "calendar.badge.plus")
+                                            Text("期限を設定")
+                                        }
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.gray)
+                                        .padding(8)
+                                        .background(Color.white.opacity(0.05))
+                                        .cornerRadius(6)
                                     }
                                     .buttonStyle(.plain)
                                 }

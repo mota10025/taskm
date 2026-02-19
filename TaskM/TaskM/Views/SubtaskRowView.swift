@@ -9,14 +9,14 @@ struct SubtaskRowView: View {
                 systemName: subtask.taskStatus == .completed
                     ? "checkmark.circle.fill" : "circle"
             )
-            .font(.system(size: 12))
+            .font(.system(size: 14))
             .foregroundColor(
                 subtask.taskStatus == .completed
                     ? AppColors.statusColor(.completed) : .gray
             )
 
             Text(subtask.name)
-                .font(.system(size: 11))
+                .font(.system(size: 13))
                 .foregroundColor(subtask.taskStatus == .completed ? .gray : .white)
                 .strikethrough(subtask.taskStatus == .completed)
                 .lineLimit(1)
