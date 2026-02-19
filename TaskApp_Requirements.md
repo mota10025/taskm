@@ -1,133 +1,175 @@
-# タスク管理 Macアプリ 要件定義
+# TaskM - タスク管理システム 仕様書
 
 ## 概要
-Claude Codeと連携するローカルタスク管理のMacネイティブアプリ。
-既存のSQLite DB (`~/workspace/task/tasks.db`) を直接読み書きし、リアルタイムでタスクを表示・編集する。
+SQLite DBを中心としたローカルタスク管理システム。
+以下の3つのインターフェースからタスクを操作でき、リアルタイムで同期する。
+
+1. **macOS ネイティブアプリ** (SwiftUI) - カンバンボードUI
+2. **CLI** (`task.sh`) - シェルスクリプトによるコマンドライン操作
+3. **Claude Desktop** (MCP Server) - 自然言語でタスク操作
 
 ## 技術スタック
-- SwiftUI + AppKit
-- SQLite直接アクセス（GRDB or sqlite3 C API）
-- Markdownレンダリング: [MarkdownUI](https://github.com/gonzalezreal/swift-markdown-ui)（SPMで導入）
-- Xcodeプロジェクト
 
-## アプリ仕様
+### macOS アプリ (`TaskM/`)
+- SwiftUI + AppKit (メニューバー常駐、フローティングウィンドウ)
+- GRDB (DatabasePool) - SQLiteアクセス
+- MarkdownUI - メモのMarkdownレンダリング
+- Xcode プロジェクト (SPMで依存管理)
+
+### CLI (`task.sh`)
+- Bash + sqlite3 コマンド
+
+### MCP Server (`mcp-server/`)
+- Node.js
+- @modelcontextprotocol/sdk
+- better-sqlite3
+
+## データ
+
+### 保存場所
+- ファイル: `~/workspace/task/tasks.db`
+- 形式: SQLite
+- ジャーナルモード: WAL (Write-Ahead Logging)
+  - 複数プロセスからの同時読み書きに対応
+  - `tasks.db-wal` と `tasks.db-shm` ファイルが自動生成される（削除不可）
+  - 全プロセスが `PRAGMA journal_mode=WAL` を設定
+
+### スキーマ
+```sql
+CREATE TABLE tasks (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  name           TEXT NOT NULL,
+  status         TEXT NOT NULL DEFAULT '未着手',  -- 未着手/進行中/今日やる/完了/アーカイブ
+  priority       TEXT,                            -- 高/中/低
+  category       TEXT,                            -- SPECRA/業務委託/個人
+  due_date       TEXT,                            -- YYYY-MM-DD
+  completed_date TEXT,                            -- YYYY-MM-DD
+  parent_task_id INTEGER,                         -- サブタスクの親タスクID
+  tags           TEXT,                            -- カンマ区切り
+  memo           TEXT,                            -- Markdown形式
+  created_at     TEXT DEFAULT (datetime('now','localtime')),
+  updated_at     TEXT DEFAULT (datetime('now','localtime')),
+  FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
+);
+```
+
+### 同時アクセス制御
+- WALモード: 読み取りと書き込みが同時に可能
+- DatabasePool (GRDB): 並行読み取り + 直列書き込み
+- busy_timeout: 10秒（ロック待機）
+- 全プロセス共通設定: `PRAGMA synchronous=NORMAL`
+
+## macOS アプリ仕様
 
 ### 起動・表示
 - メニューバー常駐（Dockには表示しない）
 - **Control キー2回押し**（0.5秒以内）でウィンドウをトグル表示/非表示
-  - グローバルキーイベント監視（CGEvent tap / NSEvent.addGlobalMonitorForEvents）
-  - 他のアプリがフォーカス中でも反応する
-  - Control単押し2回のみ反応（Control+他キーの組み合わせでは発動しない）
-- ウィンドウはフローティング（常に最前面にオプション切替可能）
-- 起動時に自動でメニューバーに常駐
-- アクセシビリティ権限が必要（初回起動時に許可を促すダイアログ表示）
-
-### データソース
-- ファイル: `~/workspace/task/tasks.db`
-- テーブル: `tasks`
-- スキーマ:
-  ```sql
-  CREATE TABLE tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT '未着手',  -- 未着手/進行中/今日やる/完了/アーカイブ
-    priority TEXT,                           -- 高/中/低
-    category TEXT,                           -- SPECRA/業務委託/個人
-    due_date TEXT,                           -- YYYY-MM-DD
-    completed_date TEXT,                     -- YYYY-MM-DD
-    parent_task_id INTEGER,
-    tags TEXT,                               -- カンマ区切り
-    memo TEXT,
-    created_at TEXT DEFAULT (datetime('now','localtime')),
-    updated_at TEXT DEFAULT (datetime('now','localtime')),
-    FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
-  );
-  ```
+  - CGEvent tap によるグローバルキーイベント監視
+  - 他のアプリがフォーカス中でも反応
+- フローティングウィンドウ（NSPanel）
+- アクセシビリティ権限が必要
 
 ### リアルタイム更新
-- DBファイルの変更を監視（FSEvents / DispatchSource）
-- Claude CodeがDBを更新したら自動でUIに反映
-- ポーリング不要、ファイル変更イベントで再読み込み
+- DispatchSource でDBファイル + WALファイルの変更を監視
+- フォールバック: 3秒間隔のポーリング（更新日時チェック）
+- デバウンス: 1秒（連続操作の衝突防止）
+- 外部プロセス（CLI, MCP Server）による変更も自動反映
 
 ### カンバンボードUI
 - 4カラム: 未着手 / 進行中 / 今日やる / 完了
-- カード表示内容: タスク名、期限、優先度バッジ、カテゴリバッジ、サブタスク数、メモアイコン
-- 期限切れは赤色で表示
+- カード表示: タスク名、期限、優先度ラベル、カテゴリラベル、サブタスク数、メモアイコン
 - ドラッグ&ドロップでステータス変更
-- ダークテーマ（既存board.htmlと同じ配色）
-- サブタスクがある場合、カード上に「▶ サブタスク (2/5)」のように進捗表示
+- フィルタバー: 優先度（高/中/低）、カテゴリ（SPECRA/業務委託/個人）
+- ダークテーマ（中間色ベース）
 
 ### カラー定義
 | 要素 | 色 |
 |------|-----|
 | 背景 | #191919 |
 | カラム背景 | #252525 |
-| カード背景 | #2d2d2d |
+| カード背景 | #525252 |
+| カードボーダー | #666666 |
+| タスク名テキスト | #e8e8e8 |
+| 期限テキスト（通常） | #cccccc |
+| 期限テキスト（期限切れ） | #e8c84a（黄色・太字） |
 | 未着手ドット | #9b9b9b |
-| 進行中ドット | #2e90fa |
-| 今日やるドット | #f79009 |
-| 完了ドット | #12b76a |
-| 優先度・高 | #f04438 |
-| 優先度・中 | #f79009 |
-| 優先度・低 | #12b76a |
-| カテゴリ・SPECRA | #5bb8ff |
-| カテゴリ・業務委託 | #f7c948 |
-| カテゴリ・個人 | #ee46bc |
+| 進行中ドット | #6ba3d6 |
+| 今日やるドット | #d4a76a |
+| 完了ドット | #7bc8a4 |
+| 優先度・高 | #d4837b |
+| 優先度・中 | #d4a76a |
+| 優先度・低 | #7bc8a4 |
+| カテゴリ・SPECRA | #82b5d6 |
+| カテゴリ・業務委託 | #d4c07a |
+| カテゴリ・個人 | #b8a0d2 |
 
-### メモ機能
-
-- タスクごとにメモを保存可能
-- 編集モーダル内にメモ欄を表示（複数行テキストエリア）
-- メモがあるタスクにはカード上にメモアイコン（📝）を表示
-- **簡易Markdown対応**（以下の記法をレンダリング）:
-  - 見出し: `# H1`、`## H2`、`### H3`
-  - 箇条書きリスト: `- item` / `* item`
-  - チェックリスト: `- [ ] TODO` / `- [x] 完了`
-  - **太字**: `**text**`
-  - テキスト改行
-- 編集時はプレーンテキスト入力（TextEditor）、プレビューは MarkdownUI でレンダリング表示
-- エディタ/プレビューをタブまたはトグルボタンで切替
-- DBの `memo` カラムにMarkdownテキストとして保存
-
-### サブタスク機能
-
-- 既存の `parent_task_id` カラムを利用した親子関係
-- **カンバンボード上の表示**:
-  - サブタスクは親タスクのカード内に折りたたみ表示
-  - 展開するとサブタスク一覧がカード内にインラインで表示される
-  - サブタスクの完了数/全体数を親カードに表示（例: 「2/5 完了」）
-  - サブタスクは独立したカードとしてはカンバンに表示しない（親カード内のみ）
-- **サブタスク操作**:
-  - 親タスクの編集モーダルからサブタスクを追加
-  - サブタスク追加時はタスク名のみ入力（ステータスは「未着手」で作成）
-  - サブタスクのチェックボックスで完了/未完了をトグル（モーダル内）
-  - サブタスクをクリックで個別編集可能（名前、ステータス、メモ）
-  - サブタスク削除はスワイプまたは削除ボタン
-- **ネスト制限**: サブタスクは1階層のみ（サブタスクのサブタスクは作れない）
-- **親タスク完了時**: 未完了のサブタスクがある場合は確認ダイアログ表示
-  - 「すべて完了にする」or「キャンセル」を選択
+- ラベルスタイル: 色背景 + ダークグレー文字（#2a2a2a）
 
 ### タスク編集
 - カードクリックで編集モーダル表示
-- 編集可能項目: タスク名、ステータス、期限、優先度、カテゴリ、タグ、メモ
-- サブタスク一覧・追加エリア（上記「サブタスク機能」参照）
-- 削除ボタン（確認ダイアログあり）
-  - サブタスクがある親タスク削除時は「サブタスクも一緒に削除」の確認
-- 保存時にDBに直接書き込み
+- 編集項目: タスク名、ステータス、期限（DatePicker）、優先度、カテゴリ、タグ、メモ
+- メモ: 編集/プレビュー切替（MarkdownUIでレンダリング）
+- サブタスク: 追加・チェックボックスでトグル・削除
+- 削除: 確認ダイアログあり（サブタスクも一緒に削除）
+- 完了時: 未完了サブタスクがある場合は確認ダイアログ
 
 ### タスク追加
 - 各カラム下部に「+ 新規タスク」ボタン
-- インラインフォームでタスク名・期限・カテゴリ・優先度を入力
+- インラインフォームでタスク名入力
 
 ### ソート順
 - 優先度順（高 > 中 > 低 > なし）
-- 同優先度内は期限順（早い順）
-- サブタスクは親タスク内で作成順（id順）
+- 同優先度内は期限順（早い順、期限なしは後ろ）
+- サブタスクはid順
+
+## CLI仕様 (`task.sh`)
+
+```bash
+./task.sh list              # 一覧（未完了のみ）
+./task.sh list --all        # 全件（完了含む）
+./task.sh add "タスク名" --due 2026-02-20 --category SPECRA --priority 高
+./task.sh done <id>         # 完了にする
+./task.sh update <id> --status 進行中 --due 2026-02-20 --priority 中
+./task.sh show <id>         # 詳細表示
+./task.sh delete <id>       # 削除
+./task.sh export            # JSONエクスポート
+```
+
+## MCP Server仕様 (`mcp-server/`)
+
+Claude Desktop アプリから自然言語でタスク操作するためのMCPサーバー。
+
+### セットアップ
+Claude Codeに依頼して開発・設定を行う。
+- `mcp-server/` ディレクトリに Node.js プロジェクトとして実装
+- `~/Library/Application Support/Claude/claude_desktop_config.json` に登録
+- Node.jsのフルパスを指定（`~/.nodebrew/current/bin/node` など環境依存）
+
+### 提供ツール
+| ツール名 | 説明 |
+|----------|------|
+| `list_tasks` | タスク一覧（フィルタ: ステータス/カテゴリ/優先度） |
+| `show_task` | タスク詳細表示 |
+| `add_task` | タスク追加（名前、優先度、カテゴリ、期限、タグ、メモ、サブタスク） |
+| `update_task` | タスク更新 |
+| `complete_task` | タスク完了（サブタスク一括完了オプション） |
+| `delete_task` | タスク削除（サブタスクも削除） |
+
+### 実装方針
+- 永続的な単一DB接続（毎回開閉しない）
+- `db.transaction()` で複数操作を原子的に実行
+- WALモード + busy_timeout=10秒
+
+## サブタスク仕様
+
+- `parent_task_id` カラムによる親子関係（1階層のみ）
+- カンバンボード上では親タスクのカード内に折りたたみ表示
+- 展開で一覧表示、完了数/全体数を表示
+- サブタスクは独立カードとしてカラムに表示しない
 
 ## 将来の拡張（今回は対象外）
-- iPhone連携（iCloud経由でJSON読み取り専用）
-- Cloudflare D1移行（マルチデバイス書き込み対応）
+- iPhone連携（iCloud経由）
+- Cloudflare D1移行（マルチデバイス対応）
 - メニューバーアイコンクリックでクイックビュー
 - 通知（期限切れアラート）
 - サブタスクの複数階層対応
-- メモのMarkdown拡張（コードブロック、リンク、画像など）
