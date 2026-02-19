@@ -1,8 +1,10 @@
 import Foundation
 
 final class DatabaseFileWatcher: @unchecked Sendable {
-    private var source: DispatchSourceFileSystemObject?
-    private var fileDescriptor: Int32 = -1
+    private var sources: [DispatchSourceFileSystemObject] = []
+    private var fileDescriptors: [Int32] = []
+    private var pollingTimer: DispatchSourceTimer?
+    private var lastModDate: Date?
 
     init(dbPath: String, onChange: @escaping @Sendable () -> Void) {
         var lastNotification = Date.distantPast
@@ -21,24 +23,47 @@ final class DatabaseFileWatcher: @unchecked Sendable {
             }
         }
 
-        // DBファイルではなくディレクトリを監視（DBファイルへのfdを保持しない）
-        let dirPath = (dbPath as NSString).deletingLastPathComponent
-        let fd = open(dirPath, O_EVTONLY)
-        if fd >= 0 {
-            fileDescriptor = fd
+        // DBファイルとWALファイルを監視
+        for path in [dbPath, "\(dbPath)-wal"] {
+            let fd = open(path, O_EVTONLY)
+            guard fd >= 0 else { continue }
+            fileDescriptors.append(fd)
+
             let source = DispatchSource.makeFileSystemObjectSource(
                 fileDescriptor: fd,
-                eventMask: [.write],
+                eventMask: [.write, .extend, .attrib],
                 queue: .global(qos: .utility)
             )
             source.setEventHandler { notify() }
             source.setCancelHandler { close(fd) }
             source.resume()
-            self.source = source
+            sources.append(source)
         }
+
+        // フォールバック: 3秒間隔で更新日時をチェック
+        lastModDate = Self.modificationDate(dbPath)
+        let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
+        timer.schedule(deadline: .now() + 3, repeating: 3)
+        timer.setEventHandler { [weak self] in
+            guard let self else { return }
+            let current = Self.modificationDate(dbPath)
+            if current != self.lastModDate {
+                self.lastModDate = current
+                notify()
+            }
+        }
+        timer.resume()
+        pollingTimer = timer
     }
 
     deinit {
-        source?.cancel()
+        for source in sources {
+            source.cancel()
+        }
+        pollingTimer?.cancel()
+    }
+
+    private static func modificationDate(_ path: String) -> Date? {
+        try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date
     }
 }
