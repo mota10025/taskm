@@ -1,6 +1,35 @@
 #!/bin/bash
 DB="$HOME/workspace/task/tasks.db"
 
+sqlite_exec() {
+  sqlite3 "$DB" "PRAGMA foreign_keys=ON; $1"
+}
+
+sqlite_exec_table() {
+  sqlite3 -header -column "$DB" "PRAGMA foreign_keys=ON; $1"
+}
+
+sql_escape() {
+  printf "%s" "$1" | sed "s/'/''/g"
+}
+
+sql_text_or_null() {
+  local value="$1"
+  if [ -z "$value" ]; then
+    printf "NULL"
+  else
+    printf "'%s'" "$(sql_escape "$value")"
+  fi
+}
+
+require_numeric_id() {
+  local id="$1"
+  if ! [[ "$id" =~ ^[0-9]+$ ]]; then
+    echo "IDは数値で指定してください: $id" >&2
+    exit 1
+  fi
+}
+
 usage() {
   echo "Usage:"
   echo "  task.sh list [--all]                    タスク一覧（未完了のみ。--allで全件）"
@@ -31,7 +60,7 @@ cmd_list() {
   if [ "$1" = "--all" ]; then
     where=""
   fi
-  sqlite3 -header -column "$DB" "
+  sqlite_exec_table "
     SELECT id, name, status, priority, category, due_date
     FROM tasks $where
     ORDER BY
@@ -66,55 +95,80 @@ cmd_add() {
       *) echo "Unknown option: $1"; exit 1;;
     esac
   done
-  sqlite3 "$DB" "INSERT INTO tasks (name, status, priority, category, due_date, parent_task_id, tags)
-    VALUES ('$name', '$status', $([ -n "$priority" ] && echo "'$priority'" || echo "NULL"), $([ -n "$category" ] && echo "'$category'" || echo "NULL"), $([ -n "$due" ] && echo "'$due'" || echo "NULL"), $([ -n "$parent" ] && echo "$parent" || echo "NULL"), $([ -n "$tags" ] && echo "'$tags'" || echo "NULL"));"
-  echo "タスクを追加しました (ID: $(sqlite3 "$DB" 'SELECT last_insert_rowid();'))"
+  if [ -n "$parent" ]; then
+    require_numeric_id "$parent"
+  fi
+
+  local name_sql status_sql priority_sql category_sql due_sql tags_sql parent_sql
+  name_sql=$(sql_text_or_null "$name")
+  status_sql=$(sql_text_or_null "$status")
+  priority_sql=$(sql_text_or_null "$priority")
+  category_sql=$(sql_text_or_null "$category")
+  due_sql=$(sql_text_or_null "$due")
+  tags_sql=$(sql_text_or_null "$tags")
+  parent_sql=${parent:-NULL}
+
+  local inserted_id
+  inserted_id=$(sqlite_exec "
+    INSERT INTO tasks (name, status, priority, category, due_date, parent_task_id, tags)
+    VALUES (${name_sql}, ${status_sql}, ${priority_sql}, ${category_sql}, ${due_sql}, ${parent_sql}, ${tags_sql});
+    SELECT last_insert_rowid();
+  ")
+  echo "タスクを追加しました (ID: $inserted_id)"
   auto_export
 }
 
 cmd_done() {
   local id="$1"
-  sqlite3 "$DB" "UPDATE tasks SET status='完了', completed_date=date('now','localtime'), updated_at=datetime('now','localtime') WHERE id=$id;"
+  require_numeric_id "$id"
+  sqlite_exec "UPDATE tasks SET status='完了', completed_date=date('now','localtime'), updated_at=datetime('now','localtime') WHERE id=$id;"
   echo "タスク $id を完了にしました"
   auto_export
 }
 
 cmd_update() {
   local id="$1"; shift
+  require_numeric_id "$id"
   local sets=()
   while [ $# -gt 0 ]; do
     case "$1" in
-      --name) sets+=("name='$2'"); shift 2;;
-      --due) sets+=("due_date='$2'"); shift 2;;
-      --category) sets+=("category='$2'"); shift 2;;
-      --priority) sets+=("priority='$2'"); shift 2;;
-      --status) sets+=("status='$2'"); shift 2;;
-      --memo) sets+=("memo='$2'"); shift 2;;
+      --name) sets+=("name=$(sql_text_or_null "$2")"); shift 2;;
+      --due) sets+=("due_date=$(sql_text_or_null "$2")"); shift 2;;
+      --category) sets+=("category=$(sql_text_or_null "$2")"); shift 2;;
+      --priority) sets+=("priority=$(sql_text_or_null "$2")"); shift 2;;
+      --status) sets+=("status=$(sql_text_or_null "$2")"); shift 2;;
+      --memo) sets+=("memo=$(sql_text_or_null "$2")"); shift 2;;
       *) echo "Unknown option: $1"; exit 1;;
     esac
   done
   sets+=("updated_at=datetime('now','localtime')")
   local set_str=$(IFS=','; echo "${sets[*]}")
-  sqlite3 "$DB" "UPDATE tasks SET $set_str WHERE id=$id;"
+  sqlite_exec "UPDATE tasks SET $set_str WHERE id=$id;"
   echo "タスク $id を更新しました"
   auto_export
 }
 
 cmd_delete() {
   local id="$1"
-  local name=$(sqlite3 "$DB" "SELECT name FROM tasks WHERE id=$id;")
-  sqlite3 "$DB" "DELETE FROM tasks WHERE id=$id;"
+  require_numeric_id "$id"
+  local name
+  name=$(sqlite_exec "SELECT name FROM tasks WHERE id=$id;")
+  sqlite_exec "
+    DELETE FROM tasks WHERE parent_task_id=$id;
+    DELETE FROM tasks WHERE id=$id;
+  "
   echo "タスク $id ($name) を削除しました"
   auto_export
 }
 
 cmd_show() {
   local id="$1"
-  sqlite3 -header -column "$DB" "SELECT * FROM tasks WHERE id=$id;"
+  require_numeric_id "$id"
+  sqlite_exec_table "SELECT * FROM tasks WHERE id=$id;"
 }
 
 cmd_export() {
-  sqlite3 "$DB" "
+  sqlite_exec "
     SELECT json_group_array(json_object(
       'id', id,
       'name', name,
