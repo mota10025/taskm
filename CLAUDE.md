@@ -62,6 +62,5 @@ tasks (
 ## Claudeへの指示
 - タスクの追加・更新・削除は `task.sh` 経由またはsqlite3コマンドで直接操作する
 - ユーザーに「タスクを見せて」と言われたら `./task.sh list` を実行して結果を整形表示する
-- ブラウザ表示が求められたら `./task.sh board` を実行する
 - タスクのステータス変更は `./task.sh update <id> --status ステータス名` を使う
 - 完了にする場合は `./task.sh done <id>` を使う（completed_dateが自動設定される）
