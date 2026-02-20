@@ -25,5 +25,8 @@ tasks.db
 *.db-shm
 *.db-wal
 
+# Node.js
+node_modules/
+
 # Generated files
 tasks.json

@@ -7,8 +7,8 @@ SQLite + シェルスクリプトによるローカルタスク管理ツール�
 ## ファイル構成
 - `tasks.db` - SQLiteデータベース（タスクデータ本体）
 - `task.sh` - CLI操作スクリプト
-- `board.html` - カンバンボード（ブラウザ表示用）
-- `tasks.json` - board.html用のエクスポートデータ（自動生成）
+- `TaskM/` - macOSネイティブアプリ（SwiftUI + GRDB）
+- `mcp-server/` - Claude Desktop用MCPサーバー（Node.js）
 
 ## タスク操作（task.sh）
 
