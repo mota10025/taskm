@@ -23,10 +23,9 @@ final class DatabaseFileWatcher: @unchecked Sendable {
             }
         }
 
-        // DBファイルとWALファイルを監視
-        for path in [dbPath, "\(dbPath)-wal"] {
-            let fd = open(path, O_EVTONLY)
-            guard fd >= 0 else { continue }
+        // DBファイルのみ監視（WALを open() するとチェックポイントがブロックされるため）
+        let fd = open(dbPath, O_EVTONLY)
+        if fd >= 0 {
             fileDescriptors.append(fd)
 
             let source = DispatchSource.makeFileSystemObjectSource(
@@ -40,13 +39,14 @@ final class DatabaseFileWatcher: @unchecked Sendable {
             sources.append(source)
         }
 
-        // フォールバック: 3秒間隔で更新日時をチェック
-        lastModDate = Self.modificationDate(dbPath)
+        // フォールバック: 3秒間隔でDBとWALの更新日時をチェック
+        let walPath = "\(dbPath)-wal"
+        lastModDate = Self.latestModificationDate(dbPath: dbPath, walPath: walPath)
         let timer = DispatchSource.makeTimerSource(queue: .global(qos: .utility))
         timer.schedule(deadline: .now() + 3, repeating: 3)
         timer.setEventHandler { [weak self] in
             guard let self else { return }
-            let current = Self.modificationDate(dbPath)
+            let current = Self.latestModificationDate(dbPath: dbPath, walPath: walPath)
             if current != self.lastModDate {
                 self.lastModDate = current
                 notify()
@@ -65,5 +65,16 @@ final class DatabaseFileWatcher: @unchecked Sendable {
 
     private static func modificationDate(_ path: String) -> Date? {
         try? FileManager.default.attributesOfItem(atPath: path)[.modificationDate] as? Date
+    }
+
+    private static func latestModificationDate(dbPath: String, walPath: String) -> Date? {
+        let dbDate = modificationDate(dbPath)
+        let walDate = modificationDate(walPath)
+        switch (dbDate, walDate) {
+        case let (d?, w?): return max(d, w)
+        case let (d?, nil): return d
+        case let (nil, w?): return w
+        case (nil, nil): return nil
+        }
     }
 }
