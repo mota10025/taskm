@@ -1,0 +1,605 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+:root {
+  --bg: #191919;
+  --column-bg: #252525;
+  --card-bg: #525252;
+  --card-border: #666666;
+  --text-primary: #e8e8e8;
+  --text-secondary: #cccccc;
+  --text-muted: #9b9b9b;
+  --text-overdue: #e8c84a;
+
+  --status-not-started: #9b9b9b;
+  --status-in-progress: #6ba3d6;
+  --status-do-today: #d4a76a;
+  --status-completed: #7bc8a4;
+
+  --priority-high: #d4837b;
+  --priority-medium: #d4a76a;
+  --priority-low: #7bc8a4;
+
+  --category-specra: #82b5d6;
+  --category-contract: #d4c07a;
+  --category-personal: #b8a0d2;
+
+  --chip-bg: #3a3a3a;
+  --chip-border: #555555;
+  --input-bg: rgba(255, 255, 255, 0.05);
+  --danger: #f04438;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text-primary);
+  min-height: 100vh;
+  overflow-x: auto;
+}
+
+/* Header */
+#header {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 16px;
+}
+
+#header h1 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+#error-message {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+/* Filter Bar */
+#filter-bar {
+  display: flex;
+  align-items: center;
+  padding: 0 16px 8px;
+  gap: 12px;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.filter-label {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+.filter-divider {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.filter-chip {
+  font-size: 13px;
+  font-weight: 500;
+  padding: 5px 10px;
+  background: var(--chip-bg);
+  color: var(--text-secondary);
+  border: 1px solid var(--chip-border);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.filter-chip:hover {
+  opacity: 0.85;
+}
+
+.filter-chip.active {
+  font-weight: 700;
+}
+
+/* Priority filter chip colors */
+.filter-chip[data-value="高"].active {
+  background: rgba(212, 131, 123, 0.25);
+  color: var(--priority-high);
+  border-color: rgba(212, 131, 123, 0.6);
+}
+.filter-chip[data-value="中"].active {
+  background: rgba(212, 167, 106, 0.25);
+  color: var(--priority-medium);
+  border-color: rgba(212, 167, 106, 0.6);
+}
+.filter-chip[data-value="低"].active {
+  background: rgba(123, 200, 164, 0.25);
+  color: var(--priority-low);
+  border-color: rgba(123, 200, 164, 0.6);
+}
+
+/* Category filter chip colors */
+.filter-chip[data-value="SPECRA"].active {
+  background: rgba(130, 181, 214, 0.25);
+  color: var(--category-specra);
+  border-color: rgba(130, 181, 214, 0.6);
+}
+.filter-chip[data-value="業務委託"].active {
+  background: rgba(212, 192, 122, 0.25);
+  color: var(--category-contract);
+  border-color: rgba(212, 192, 122, 0.6);
+}
+.filter-chip[data-value="個人"].active {
+  background: rgba(184, 160, 210, 0.25);
+  color: var(--category-personal);
+  border-color: rgba(184, 160, 210, 0.6);
+}
+
+.clear-btn {
+  font-size: 13px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: auto;
+}
+
+.clear-btn:hover {
+  color: var(--text-primary);
+}
+
+/* Kanban Board */
+#kanban-board {
+  display: flex;
+  gap: 12px;
+  padding: 0 16px 16px;
+  min-height: calc(100vh - 100px);
+}
+
+.kanban-column {
+  flex: 1;
+  min-width: 260px;
+  background: var(--column-bg);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 100px);
+  transition: outline 0.15s;
+  outline: 2px solid transparent;
+}
+
+.kanban-column.drag-over {
+  outline-style: solid;
+}
+
+.column-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+}
+
+.status-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.column-title {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.column-count {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 2px 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+}
+
+.card-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.column-footer {
+  padding: 0 10px 8px;
+}
+
+.add-task-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.add-task-btn:hover {
+  color: var(--text-secondary);
+}
+
+/* Add form */
+.add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.add-form input {
+  font-size: 14px;
+  padding: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.add-form input:focus {
+  border-color: var(--status-in-progress);
+}
+
+.add-form-actions {
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.add-form-actions button {
+  font-size: 13px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+}
+
+/* Task Card */
+.task-card {
+  padding: 12px;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+
+.task-card:hover {
+  opacity: 0.9;
+}
+
+.task-card.dragging {
+  opacity: 0.5;
+}
+
+.card-name {
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+  margin-bottom: 8px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.card-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.badge {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 7px;
+  border-radius: 4px;
+  color: #2a2a2a;
+}
+
+.badge-priority-高 { background: var(--priority-high); }
+.badge-priority-中 { background: var(--priority-medium); }
+.badge-priority-低 { background: var(--priority-low); }
+
+.badge-category {
+  font-weight: 500;
+}
+.badge-category-SPECRA { background: var(--category-specra); }
+.badge-category-業務委託 { background: var(--category-contract); }
+.badge-category-個人 { background: var(--category-personal); }
+
+.card-memo-icon {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.card-due {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.card-due.overdue {
+  color: var(--text-overdue);
+  font-weight: 700;
+}
+
+.card-subtasks {
+  font-size: 13px;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Modal */
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.modal-content {
+  position: relative;
+  background: var(--bg);
+  border-radius: 10px;
+  width: 500px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--chip-border);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.modal-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.modal-close {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+  font-size: 14px;
+  padding: 8px;
+  background: var(--input-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  outline: none;
+  font-family: inherit;
+}
+
+.form-group textarea {
+  font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, monospace;
+  font-size: 13px;
+  resize: vertical;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+  border-color: var(--status-in-progress);
+}
+
+.form-row {
+  display: flex;
+  gap: 12px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+.modal-footer {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.modal-footer-right {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.btn-primary {
+  font-size: 14px;
+  padding: 6px 16px;
+  background: var(--status-in-progress);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.btn-primary:hover {
+  opacity: 0.9;
+}
+
+.btn-secondary {
+  font-size: 14px;
+  padding: 6px 16px;
+  background: none;
+  color: var(--text-muted);
+  border: none;
+  cursor: pointer;
+}
+
+.btn-danger {
+  font-size: 14px;
+  padding: 6px 16px;
+  background: none;
+  color: var(--danger);
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Subtask list in modal */
+.subtask-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.subtask-check {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: var(--status-completed);
+}
+
+.subtask-name {
+  font-size: 13px;
+  flex: 1;
+}
+
+.subtask-name.completed {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.subtask-delete {
+  font-size: 11px;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+.subtask-item:hover .subtask-delete {
+  opacity: 1;
+}
+
+.subtask-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.subtask-add input {
+  flex: 1;
+  font-size: 13px;
+  padding: 6px;
+  background: var(--input-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: 4px;
+  color: var(--text-primary);
+  outline: none;
+}
+
+.subtask-add input:focus {
+  border-color: var(--status-in-progress);
+}
+
+#add-subtask-btn {
+  font-size: 18px;
+  color: var(--status-in-progress);
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}

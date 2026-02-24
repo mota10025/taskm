@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TaskM</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header id="header">
+      <h1>TaskM</h1>
+      <span id="error-message"></span>
+    </header>
+
+    <div id="filter-bar">
+      <div class="filter-group">
+        <span class="filter-label">優先度</span>
+        <button class="filter-chip" data-filter="priority" data-value="高">高</button>
+        <button class="filter-chip" data-filter="priority" data-value="中">中</button>
+        <button class="filter-chip" data-filter="priority" data-value="低">低</button>
+      </div>
+      <div class="filter-divider"></div>
+      <div class="filter-group">
+        <span class="filter-label">カテゴリ</span>
+        <button class="filter-chip" data-filter="category" data-value="SPECRA">SPECRA</button>
+        <button class="filter-chip" data-filter="category" data-value="業務委託">業務委託</button>
+        <button class="filter-chip" data-filter="category" data-value="個人">個人</button>
+      </div>
+      <button id="clear-filters" class="clear-btn hidden">✕ クリア</button>
+    </div>
+
+    <div id="kanban-board"></div>
+  </div>
+
+  <!-- タスク編集モーダル -->
+  <div id="edit-modal" class="modal hidden">
+    <div class="modal-backdrop"></div>
+    <div class="modal-content">
+      <div class="modal-header">
+        <span class="modal-title">タスク編集</span>
+        <button class="modal-close" id="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label>タスク名</label>
+          <input type="text" id="edit-name">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>ステータス</label>
+            <select id="edit-status">
+              <option value="未着手">未着手</option>
+              <option value="進行中">進行中</option>
+              <option value="今日やる">今日やる</option>
+              <option value="完了">完了</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>優先度</label>
+            <select id="edit-priority">
+              <option value="">なし</option>
+              <option value="高">高</option>
+              <option value="中">中</option>
+              <option value="低">低</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>カテゴリ</label>
+            <select id="edit-category">
+              <option value="">なし</option>
+              <option value="SPECRA">SPECRA</option>
+              <option value="業務委託">業務委託</option>
+              <option value="個人">個人</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>期限</label>
+          <input type="date" id="edit-due-date">
+        </div>
+        <div class="form-group">
+          <label>タグ</label>
+          <input type="text" id="edit-tags" placeholder="カンマ区切り">
+        </div>
+        <div class="form-group">
+          <label>メモ</label>
+          <textarea id="edit-memo" rows="4" placeholder="Markdown対応"></textarea>
+        </div>
+        <div class="form-group" id="subtask-section">
+          <label>サブタスク <span id="subtask-count"></span></label>
+          <div id="subtask-list"></div>
+          <div class="subtask-add">
+            <input type="text" id="new-subtask-name" placeholder="サブタスクを追加...">
+            <button id="add-subtask-btn">+</button>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-danger" id="modal-delete">削除</button>
+        <div class="modal-footer-right">
+          <button class="btn-secondary" id="modal-cancel">キャンセル</button>
+          <button class="btn-primary" id="modal-save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

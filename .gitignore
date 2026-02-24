@@ -28,5 +28,9 @@ tasks.db
 # Node.js
 node_modules/
 
+# Cloudflare Workers
+workers/.wrangler/
+workers/.dev.vars
+
 # Generated files
 tasks.json
