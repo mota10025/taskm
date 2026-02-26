@@ -107,9 +107,17 @@ Claude Desktop の設定ファイル（`~/Library/Application Support/Claude/cla
 
 ### 4. macOS アプリ
 
-1. Xcode で `TaskM/TaskM.xcodeproj` を開く
-2. Xcode Scheme の環境変数に `TASKM_API_URL` と `TASKM_API_KEY` を設定
-3. ビルド & 実行
+1. `TaskM/TaskM/Secrets.swift` を作成（gitignore対象）:
+
+   ```swift
+   enum Secrets {
+       static let apiURL = "https://your-worker.workers.dev"
+       static let apiKey = "your-api-key"
+   }
+   ```
+
+2. Xcode で `TaskM/TaskM.xcodeproj` を開く
+3. ビルド & 実行（Archive でも動作）
 4. アクセシビリティ権限を許可（システム設定 > プライバシーとセキュリティ）
 
 ### 5. iPhone Claude アプリ（Remote MCP）
@@ -200,7 +208,7 @@ Cloudflare Access（Zero Trust）でPages全体を保護し、許可されたユ
 2. **Access** → **Applications** → **Add an application**
 3. **Self-hosted** を選択
 4. 設定:
-   - Application name: `TaskM Web`
+   - Application name: `TaskM Web（好きな名称）`
    - Application domain: `your-project.pages.dev`
    - Session Duration: 任意（例: 24時間）
 5. **Policy** を追加:
@@ -228,7 +236,7 @@ npx wrangler secret put API_KEY
 
 | クライアント | 設定場所 |
 | --- | --- |
-| macOSアプリ | Xcode Scheme 環境変数 `TASKM_API_KEY` |
+| macOSアプリ | `TaskM/TaskM/Secrets.swift`（gitignore対象） |
 | Claude Desktop MCP | `claude_desktop_config.json` の `env.TASKM_API_KEY` |
 | Webカンバンボード | `web/config.js`（gitignore対象） |
 
@@ -292,7 +300,7 @@ npx wrangler secret put ALLOWED_EMAIL    # 許可するメールアドレス（1
 
 - `web/config.js` はAPIキーを含むため `.gitignore` 対象。リポジトリにコミットしないこと
 - Workers のSecret（`API_KEY`, `ALLOWED_EMAIL`）はCloudflareダッシュボードまたは `wrangler secret` で管理
-- macOSアプリのAPIキーはInfo.plistまたはXcode Scheme環境変数で設定（ソースコードにハードコードしない）
+- macOSアプリのAPIキーは `TaskM/TaskM/Secrets.swift` に記載（gitignore対象）
 
 ## データベース
 
