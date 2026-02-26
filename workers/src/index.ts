@@ -9,8 +9,21 @@ import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/
 
 // ── Hono REST API（既存） ──
 const app = new Hono<{ Bindings: Bindings }>();
-app.use("/api/*", cors());
+app.use("/api/*", async (c, next) => {
+  const allowedOrigins = c.env.ALLOWED_ORIGINS
+    ? c.env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+    : ["http://localhost:8787"];
+  return cors({ origin: allowedOrigins })(c, next);
+});
 app.use("/api/*", authMiddleware);
+
+// セキュリティヘッダー
+app.use("/api/*", async (c, next) => {
+  await next();
+  c.header("Content-Security-Policy", "default-src 'none'; frame-ancestors 'none'");
+  c.header("X-Content-Type-Options", "nosniff");
+  c.header("X-Frame-Options", "DENY");
+});
 app.route("/api", tasks);
 app.get("/", (c) => c.json({ status: "ok", service: "taskm-api" }));
 
@@ -44,9 +57,14 @@ export default {
 async function handleMcp(request: Request, env: Bindings): Promise<Response> {
   // CORS preflight
   if (request.method === "OPTIONS") {
+    const allowedOrigins = env.ALLOWED_ORIGINS
+      ? env.ALLOWED_ORIGINS.split(",").map((o) => o.trim())
+      : ["http://localhost:8787"];
+    const origin = request.headers.get("Origin") || "";
+    const allowOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
     return new Response(null, {
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": allowOrigin,
         "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization, mcp-session-id",
       },

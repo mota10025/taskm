@@ -30,6 +30,37 @@ require_numeric_id() {
   fi
 }
 
+validate_status() {
+  local val="$1"
+  case "$val" in
+    未着手|進行中|今日やる|完了|アーカイブ) ;;
+    *) echo "無効なステータス: $val（未着手/進行中/今日やる/完了/アーカイブ）" >&2; exit 1;;
+  esac
+}
+
+validate_priority() {
+  local val="$1"
+  case "$val" in
+    高|中|低) ;;
+    *) echo "無効な優先度: $val（高/中/低）" >&2; exit 1;;
+  esac
+}
+
+validate_category() {
+  local val="$1"
+  case "$val" in
+    SPECRA|業務委託|個人) ;;
+    *) echo "無効なカテゴリ: $val（SPECRA/業務委託/個人）" >&2; exit 1;;
+  esac
+}
+
+validate_date() {
+  local val="$1"
+  if ! [[ "$val" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "無効な日付形式: $val（YYYY-MM-DD）" >&2; exit 1
+  fi
+}
+
 usage() {
   echo "Usage:"
   echo "  task.sh list [--all]                    タスク一覧（未完了のみ。--allで全件）"
@@ -98,6 +129,11 @@ cmd_add() {
   if [ -n "$parent" ]; then
     require_numeric_id "$parent"
   fi
+  # ホワイトリスト検証
+  [ -n "$status" ] && validate_status "$status"
+  [ -n "$priority" ] && validate_priority "$priority"
+  [ -n "$category" ] && validate_category "$category"
+  [ -n "$due" ] && validate_date "$due"
 
   local name_sql status_sql priority_sql category_sql due_sql tags_sql parent_sql
   name_sql=$(sql_text_or_null "$name")
@@ -133,10 +169,10 @@ cmd_update() {
   while [ $# -gt 0 ]; do
     case "$1" in
       --name) sets+=("name=$(sql_text_or_null "$2")"); shift 2;;
-      --due) sets+=("due_date=$(sql_text_or_null "$2")"); shift 2;;
-      --category) sets+=("category=$(sql_text_or_null "$2")"); shift 2;;
-      --priority) sets+=("priority=$(sql_text_or_null "$2")"); shift 2;;
-      --status) sets+=("status=$(sql_text_or_null "$2")"); shift 2;;
+      --due) validate_date "$2"; sets+=("due_date=$(sql_text_or_null "$2")"); shift 2;;
+      --category) validate_category "$2"; sets+=("category=$(sql_text_or_null "$2")"); shift 2;;
+      --priority) validate_priority "$2"; sets+=("priority=$(sql_text_or_null "$2")"); shift 2;;
+      --status) validate_status "$2"; sets+=("status=$(sql_text_or_null "$2")"); shift 2;;
       --memo) sets+=("memo=$(sql_text_or_null "$2")"); shift 2;;
       *) echo "Unknown option: $1"; exit 1;;
     esac
@@ -197,7 +233,22 @@ cmd_board() {
   json_data=$(cmd_export)
   local out="$dir/board_view.html"
   # board.htmlのloadTasks前にTASKS_DATAを埋め込んだHTMLを生成
-  sed "s|</head>|<script>const TASKS_DATA = ${json_data};</script></head>|" "$dir/board.html" > "$out"
+  # sedやawkへの直接展開を避け、テンプレート置換で安全に埋め込む
+  local script_tag="<script>const TASKS_DATA = ${json_data};</script>"
+  local tmpfile
+  tmpfile=$(mktemp)
+  # </head>の行を分割して、スクリプトタグを挿入
+  while IFS= read -r line; do
+    case "$line" in
+      *"</head>"*)
+        printf '%s\n' "${line%%</head>*}${script_tag}</head>${line#*</head>}"
+        ;;
+      *)
+        printf '%s\n' "$line"
+        ;;
+    esac
+  done < "$dir/board.html" > "$tmpfile"
+  mv "$tmpfile" "$out"
   open "$out"
 }
 

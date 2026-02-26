@@ -3,6 +3,7 @@ export type Bindings = {
   API_KEY: string;
   OAUTH_KV: KVNamespace;
   ALLOWED_EMAIL: string;
+  ALLOWED_ORIGINS?: string; // カンマ区切りの許可オリジン
 };
 
 export interface Task {

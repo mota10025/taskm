@@ -1,15 +1,57 @@
 import { Hono } from "hono";
+import { z } from "zod";
 import type { Bindings, Task, TaskWithSubtasks } from "../types";
 import { nowJST } from "../utils/date";
+
+// バリデーションスキーマ
+const statusEnum = z.enum(["未着手", "進行中", "今日やる", "完了", "アーカイブ"]);
+const priorityEnum = z.enum(["高", "中", "低"]);
+const categoryEnum = z.enum(["SPECRA", "業務委託", "個人"]);
+const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
+const createTaskSchema = z.object({
+  name: z.string().min(1, "name は必須です。"),
+  status: statusEnum.optional(),
+  priority: priorityEnum.nullable().optional(),
+  category: categoryEnum.nullable().optional(),
+  due_date: dateStr.nullable().optional(),
+  tags: z.string().nullable().optional(),
+  memo: z.string().nullable().optional(),
+  parent_task_id: z.number().int().positive().nullable().optional(),
+});
+
+const updateTaskSchema = z.object({
+  name: z.string().min(1).optional(),
+  status: statusEnum.optional(),
+  priority: priorityEnum.nullable().optional(),
+  category: categoryEnum.nullable().optional(),
+  due_date: dateStr.nullable().optional(),
+  tags: z.string().nullable().optional(),
+  memo: z.string().nullable().optional(),
+});
+
+const querySchema = z.object({
+  show_all: z.enum(["true", "false"]).optional(),
+  status: statusEnum.optional(),
+  category: categoryEnum.optional(),
+  priority: priorityEnum.optional(),
+});
 
 const tasks = new Hono<{ Bindings: Bindings }>();
 
 // GET /tasks - タスク一覧
 tasks.get("/tasks", async (c) => {
-  const showAll = c.req.query("show_all") === "true";
-  const status = c.req.query("status");
-  const category = c.req.query("category");
-  const priority = c.req.query("priority");
+  const queryResult = querySchema.safeParse({
+    show_all: c.req.query("show_all") || undefined,
+    status: c.req.query("status") || undefined,
+    category: c.req.query("category") || undefined,
+    priority: c.req.query("priority") || undefined,
+  });
+  if (!queryResult.success) {
+    return c.json({ success: false, error: queryResult.error.issues[0].message }, 400);
+  }
+  const { show_all, status, category, priority } = queryResult.data;
+  const showAll = show_all === "true";
 
   let sql = "SELECT * FROM tasks WHERE parent_task_id IS NULL";
   const params: string[] = [];
@@ -83,20 +125,15 @@ tasks.get("/tasks/:id", async (c) => {
 
 // POST /tasks - タスク追加
 tasks.post("/tasks", async (c) => {
-  const body = await c.req.json<{
-    name: string;
-    status?: string;
-    priority?: string;
-    category?: string;
-    due_date?: string;
-    tags?: string;
-    memo?: string;
-    parent_task_id?: number;
-  }>();
-
-  if (!body.name) {
-    return c.json({ success: false, error: "name は必須です。" }, 400);
+  const raw = await c.req.json().catch(() => null);
+  if (!raw) {
+    return c.json({ success: false, error: "無効なJSONです。" }, 400);
   }
+  const parsed = createTaskSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ success: false, error: parsed.error.issues[0].message }, 400);
+  }
+  const body = parsed.data;
 
   const { datetime } = nowJST();
   const result = await c.env.DB.prepare(
@@ -138,15 +175,15 @@ tasks.put("/tasks/:id", async (c) => {
     return c.json({ success: false, error: `タスク ${id} は見つかりません。` }, 404);
   }
 
-  const body = await c.req.json<{
-    name?: string;
-    status?: string;
-    priority?: string | null;
-    category?: string | null;
-    due_date?: string | null;
-    tags?: string | null;
-    memo?: string | null;
-  }>();
+  const raw = await c.req.json().catch(() => null);
+  if (!raw) {
+    return c.json({ success: false, error: "無効なJSONです。" }, 400);
+  }
+  const parsed = updateTaskSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ success: false, error: parsed.error.issues[0].message }, 400);
+  }
+  const body = parsed.data;
 
   const { date, datetime } = nowJST();
   const sets: string[] = ["updated_at = ?"];
