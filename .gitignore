@@ -34,6 +34,8 @@ workers/.dev.vars
 
 # API keys / secrets
 web/config.js
+TaskM/Secrets.xcconfig
+TaskM/TaskM/Secrets.swift
 
 # Generated files
 tasks.json

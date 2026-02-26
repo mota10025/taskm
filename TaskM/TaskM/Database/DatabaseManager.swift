@@ -44,14 +44,8 @@ final class DatabaseManager: Sendable {
     private let apiKey: String
 
     private init() {
-        // APIキーはInfo.plistまたは環境変数から読み込み
-        let bundle = Bundle.main
-        self.apiURL = bundle.object(forInfoDictionaryKey: "TASKM_API_URL") as? String
-            ?? ProcessInfo.processInfo.environment["TASKM_API_URL"]
-            ?? ""
-        self.apiKey = bundle.object(forInfoDictionaryKey: "TASKM_API_KEY") as? String
-            ?? ProcessInfo.processInfo.environment["TASKM_API_KEY"]
-            ?? ""
+        self.apiURL = Secrets.apiURL
+        self.apiKey = Secrets.apiKey
     }
 
     // MARK: - API Helper

@@ -50,6 +50,18 @@
             ReferencedContainer = "container:TaskM.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
+      <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "TASKM_API_URL"
+            value = "https://taskm-api.motaka2308.workers.dev"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "TASKM_API_KEY"
+            value = "b504601e368822fd5a23ea1b05bf11ef16f5ca708fad697afbeef140d328f3e1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+      </EnvironmentVariables>
    </LaunchAction>
    <ProfileAction
       buildConfiguration = "Release"
