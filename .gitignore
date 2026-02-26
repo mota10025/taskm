@@ -32,5 +32,8 @@ node_modules/
 workers/.wrangler/
 workers/.dev.vars
 
+# API keys / secrets
+web/config.js
+
 # Generated files
 tasks.json

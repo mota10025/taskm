@@ -1,38 +1,28 @@
 const { McpServer } = require("@modelcontextprotocol/sdk/server/mcp.js");
 const { StdioServerTransport } = require("@modelcontextprotocol/sdk/server/stdio.js");
 const { z } = require("zod");
-const Database = require("better-sqlite3");
-const path = require("path");
-const os = require("os");
 
-const DB_PATH = path.join(os.homedir(), "workspace", "task", "tasks.db");
+// ── API設定 ──
+const API_URL = process.env.TASKM_API_URL || "https://taskm-api.motaka2308.workers.dev";
+const API_KEY = process.env.TASKM_API_KEY || "";
 
-// 永続接続（better-sqlite3は同期的なので並行ツール呼び出しは自動的に直列化される）
-const db = new Database(DB_PATH);
-db.pragma("foreign_keys = ON");
-db.pragma("journal_mode = WAL");
-db.pragma("busy_timeout = 10000");
-db.pragma("synchronous = NORMAL");
-
-// クリーンシャットダウン
-process.on("exit", () => db.close());
-process.on("SIGINT", () => { db.close(); process.exit(0); });
-process.on("SIGTERM", () => { db.close(); process.exit(0); });
-
-function formatDate() {
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const h = String(now.getHours()).padStart(2, "0");
-  const mi = String(now.getMinutes()).padStart(2, "0");
-  const s = String(now.getSeconds()).padStart(2, "0");
-  return { date: `${y}-${m}-${d}`, datetime: `${y}-${m}-${d} ${h}:${mi}:${s}` };
+async function api(path, options = {}) {
+  const res = await fetch(`${API_URL}/api${path}`, {
+    ...options,
+    headers: {
+      "X-API-Key": API_KEY,
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error || "API error");
+  return data;
 }
 
 const server = new McpServer({
   name: "taskm",
-  version: "1.0.0",
+  version: "2.0.0",
 });
 
 // タスク一覧
@@ -46,37 +36,23 @@ server.tool(
     priority: z.string().optional().describe("優先度でフィルタ（高/中/低）"),
   },
   async ({ show_all, status, category, priority }) => {
-    let sql = "SELECT * FROM tasks WHERE parent_task_id IS NULL";
-    const params = [];
+    const params = new URLSearchParams();
+    if (show_all) params.set("show_all", "true");
+    if (status) params.set("status", status);
+    if (category) params.set("category", category);
+    if (priority) params.set("priority", priority);
+    params.set("include_subtasks", "true");
 
-    if (!show_all) {
-      sql += " AND status NOT IN ('完了', 'アーカイブ')";
-    }
-    if (status) {
-      sql += " AND status = ?";
-      params.push(status);
-    }
-    if (category) {
-      sql += " AND category = ?";
-      params.push(category);
-    }
-    if (priority) {
-      sql += " AND priority = ?";
-      params.push(priority);
-    }
+    const { data: tasks } = await api(`/tasks?${params}`);
 
-    sql += ` ORDER BY
-      CASE priority WHEN '高' THEN 0 WHEN '中' THEN 1 WHEN '低' THEN 2 ELSE 3 END,
-      CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
-      due_date`;
+    // 親タスクだけ表示
+    const parentTasks = tasks.filter((t) => !t.parent_task_id);
 
-    const tasks = db.prepare(sql).all(...params);
-
-    if (tasks.length === 0) {
+    if (parentTasks.length === 0) {
       return { content: [{ type: "text", text: "タスクはありません。" }] };
     }
 
-    const lines = tasks.map((t) => {
+    const lines = parentTasks.map((t) => {
       const parts = [`[${t.id}] ${t.name}`];
       parts.push(`  ステータス: ${t.status}`);
       if (t.priority) parts.push(`  優先度: ${t.priority}`);
@@ -84,10 +60,9 @@ server.tool(
       if (t.due_date) parts.push(`  期限: ${t.due_date}`);
       if (t.tags) parts.push(`  タグ: ${t.tags}`);
 
-      const subtasks = db.prepare("SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY id").all(t.id);
-      if (subtasks.length > 0) {
-        const done = subtasks.filter((s) => s.status === "完了").length;
-        parts.push(`  サブタスク: ${done}/${subtasks.length}`);
+      if (t.subtasks && t.subtasks.length > 0) {
+        const done = t.subtasks.filter((s) => s.status === "完了").length;
+        parts.push(`  サブタスク: ${done}/${t.subtasks.length}`);
       }
       return parts.join("\n");
     });
@@ -104,38 +79,38 @@ server.tool(
     id: z.number().describe("タスクID"),
   },
   async ({ id }) => {
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-    if (!task) {
+    try {
+      const { data: task } = await api(`/tasks/${id}`);
+
+      const lines = [
+        `[${task.id}] ${task.name}`,
+        `ステータス: ${task.status}`,
+        `優先度: ${task.priority || "なし"}`,
+        `カテゴリ: ${task.category || "なし"}`,
+        `期限: ${task.due_date || "なし"}`,
+        `タグ: ${task.tags || "なし"}`,
+        `メモ: ${task.memo || "なし"}`,
+        `作成日: ${task.created_at || "不明"}`,
+        `更新日: ${task.updated_at || "不明"}`,
+      ];
+
+      if (task.completed_date) {
+        lines.push(`完了日: ${task.completed_date}`);
+      }
+
+      if (task.subtasks && task.subtasks.length > 0) {
+        lines.push("");
+        lines.push("サブタスク:");
+        task.subtasks.forEach((s) => {
+          const mark = s.status === "完了" ? "[x]" : "[ ]";
+          lines.push(`  ${mark} [${s.id}] ${s.name}`);
+        });
+      }
+
+      return { content: [{ type: "text", text: lines.join("\n") }] };
+    } catch {
       return { content: [{ type: "text", text: `タスク ${id} は見つかりません。` }] };
     }
-
-    const lines = [
-      `[${task.id}] ${task.name}`,
-      `ステータス: ${task.status}`,
-      `優先度: ${task.priority || "なし"}`,
-      `カテゴリ: ${task.category || "なし"}`,
-      `期限: ${task.due_date || "なし"}`,
-      `タグ: ${task.tags || "なし"}`,
-      `メモ: ${task.memo || "なし"}`,
-      `作成日: ${task.created_at || "不明"}`,
-      `更新日: ${task.updated_at || "不明"}`,
-    ];
-
-    if (task.completed_date) {
-      lines.push(`完了日: ${task.completed_date}`);
-    }
-
-    const subtasks = db.prepare("SELECT * FROM tasks WHERE parent_task_id = ? ORDER BY id").all(id);
-    if (subtasks.length > 0) {
-      lines.push("");
-      lines.push("サブタスク:");
-      subtasks.forEach((s) => {
-        const mark = s.status === "完了" ? "[x]" : "[ ]";
-        lines.push(`  ${mark} [${s.id}] ${s.name}`);
-      });
-    }
-
-    return { content: [{ type: "text", text: lines.join("\n") }] };
   }
 );
 
@@ -154,27 +129,22 @@ server.tool(
     parent_task_id: z.number().optional().describe("親タスクID（サブタスクの場合）"),
   },
   async ({ name, priority, category, due_date, status, tags, memo, parent_task_id }) => {
-    const { datetime } = formatDate();
-    const result = db
-      .prepare(
-        `INSERT INTO tasks (name, status, priority, category, due_date, parent_task_id, tags, memo, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(
-        name,
-        status || "未着手",
-        priority || null,
-        category || null,
-        due_date || null,
-        parent_task_id || null,
-        tags || null,
-        memo || null,
-        datetime,
-        datetime
-      );
+    const body = { name };
+    if (status) body.status = status;
+    if (priority) body.priority = priority;
+    if (category) body.category = category;
+    if (due_date) body.due_date = due_date;
+    if (tags) body.tags = tags;
+    if (memo) body.memo = memo;
+    if (parent_task_id) body.parent_task_id = parent_task_id;
+
+    const { data } = await api("/tasks", {
+      method: "POST",
+      body: JSON.stringify(body),
+    });
 
     return {
-      content: [{ type: "text", text: `タスクを追加しました (ID: ${result.lastInsertRowid})\n名前: ${name}${priority ? `\n優先度: ${priority}` : ""}${category ? `\nカテゴリ: ${category}` : ""}${due_date ? `\n期限: ${due_date}` : ""}` }],
+      content: [{ type: "text", text: `タスクを追加しました (ID: ${data.id})\n名前: ${name}${priority ? `\n優先度: ${priority}` : ""}${category ? `\nカテゴリ: ${category}` : ""}${due_date ? `\n期限: ${due_date}` : ""}` }],
     };
   }
 );
@@ -194,32 +164,19 @@ server.tool(
     memo: z.string().nullable().optional().describe("メモ（nullで解除）"),
   },
   async ({ id, name, status, priority, category, due_date, tags, memo }) => {
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-    if (!task) {
-      return { content: [{ type: "text", text: `タスク ${id} は見つかりません。` }] };
-    }
+    const body = {};
+    if (name !== undefined) body.name = name;
+    if (status !== undefined) body.status = status;
+    if (priority !== undefined) body.priority = priority;
+    if (category !== undefined) body.category = category;
+    if (due_date !== undefined) body.due_date = due_date;
+    if (tags !== undefined) body.tags = tags;
+    if (memo !== undefined) body.memo = memo;
 
-    const { date, datetime } = formatDate();
-    const sets = ["updated_at = ?"];
-    const params = [datetime];
-
-    if (name !== undefined) { sets.push("name = ?"); params.push(name); }
-    if (status !== undefined) {
-      sets.push("status = ?");
-      params.push(status);
-      if (status === "完了") {
-        sets.push("completed_date = ?");
-        params.push(date);
-      }
-    }
-    if (priority !== undefined) { sets.push("priority = ?"); params.push(priority); }
-    if (category !== undefined) { sets.push("category = ?"); params.push(category); }
-    if (due_date !== undefined) { sets.push("due_date = ?"); params.push(due_date); }
-    if (tags !== undefined) { sets.push("tags = ?"); params.push(tags); }
-    if (memo !== undefined) { sets.push("memo = ?"); params.push(memo); }
-
-    params.push(id);
-    db.prepare(`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`).run(...params);
+    await api(`/tasks/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(body),
+    });
 
     return { content: [{ type: "text", text: `タスク ${id} を更新しました。` }] };
   }
@@ -234,26 +191,19 @@ server.tool(
     complete_subtasks: z.boolean().optional().describe("サブタスクも一緒に完了にする"),
   },
   async ({ id, complete_subtasks }) => {
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-    if (!task) {
-      return { content: [{ type: "text", text: `タスク ${id} は見つかりません。` }] };
-    }
+    // まずタスク名を取得
+    let taskName = "";
+    try {
+      const { data: task } = await api(`/tasks/${id}`);
+      taskName = task.name;
+    } catch {}
 
-    const { date, datetime } = formatDate();
-
-    const completeOp = db.transaction(() => {
-      if (complete_subtasks) {
-        db.prepare(
-          "UPDATE tasks SET status = '完了', completed_date = ?, updated_at = ? WHERE parent_task_id = ? AND status != '完了'"
-        ).run(date, datetime, id);
-      }
-      db.prepare(
-        "UPDATE tasks SET status = '完了', completed_date = ?, updated_at = ? WHERE id = ?"
-      ).run(date, datetime, id);
+    await api(`/tasks/${id}/complete`, {
+      method: "POST",
+      body: JSON.stringify({ complete_subtasks: complete_subtasks || false }),
     });
-    completeOp();
 
-    return { content: [{ type: "text", text: `タスク ${id}「${task.name}」を完了にしました。` }] };
+    return { content: [{ type: "text", text: `タスク ${id}「${taskName}」を完了にしました。` }] };
   }
 );
 
@@ -265,18 +215,16 @@ server.tool(
     id: z.number().describe("タスクID"),
   },
   async ({ id }) => {
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
-    if (!task) {
-      return { content: [{ type: "text", text: `タスク ${id} は見つかりません。` }] };
-    }
+    // まずタスク名を取得
+    let taskName = "";
+    try {
+      const { data: task } = await api(`/tasks/${id}`);
+      taskName = task.name;
+    } catch {}
 
-    const deleteOp = db.transaction(() => {
-      db.prepare("DELETE FROM tasks WHERE parent_task_id = ?").run(id);
-      db.prepare("DELETE FROM tasks WHERE id = ?").run(id);
-    });
-    deleteOp();
+    await api(`/tasks/${id}`, { method: "DELETE" });
 
-    return { content: [{ type: "text", text: `タスク ${id}「${task.name}」を削除しました。` }] };
+    return { content: [{ type: "text", text: `タスク ${id}「${taskName}」を削除しました。` }] };
   }
 );
 

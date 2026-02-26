@@ -1,6 +1,8 @@
 export type Bindings = {
   DB: D1Database;
   API_KEY: string;
+  OAUTH_KV: KVNamespace;
+  ALLOWED_EMAIL: string;
 };
 
 export interface Task {

@@ -1,7 +1,9 @@
 // ── 設定 ──
-// 開発時: http://localhost:8787  本番時: Workers URL
-const API_URL = location.hostname === "localhost" ? "http://localhost:8787" : "";
-const API_KEY = "dev-key"; // 本番時はCloudflare Accessで保護 or Workers Secretに変更
+// config.js から API_URL と API_KEY を読み込む（gitignore対象）
+// config.js が未定義の場合のフォールバック
+if (typeof API_URL === "undefined" || typeof API_KEY === "undefined") {
+  console.error("config.js が読み込まれていません。web/config.js を作成してください。");
+}
 
 const STATUSES = ["未着手", "進行中", "今日やる", "完了"];
 const STATUS_COLORS = {

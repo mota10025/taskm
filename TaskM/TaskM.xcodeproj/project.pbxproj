@@ -8,7 +8,6 @@
 
 /* Begin PBXBuildFile section */
 		B9BAF24E2F4570AE00558D8C /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = B9BAF2362F456C0000558D8C /* MarkdownUI */; };
-		B9BAF28D2F458F6800558D8C /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = B9BAF28C2F458F6800558D8C /* GRDB */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,7 +28,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				B9BAF24E2F4570AE00558D8C /* MarkdownUI in Frameworks */,
-				B9BAF28D2F458F6800558D8C /* GRDB in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -73,7 +71,6 @@
 			name = TaskM;
 			packageProductDependencies = (
 				B9BAF2362F456C0000558D8C /* MarkdownUI */,
-				B9BAF28C2F458F6800558D8C /* GRDB */,
 			);
 			productName = TaskM;
 			productReference = B9BAF2112F456B9F00558D8C /* TaskM.app */;
@@ -105,7 +102,6 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				B9BAF27F2F457D0600558D8C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-				B9BAF28B2F458F6800558D8C /* XCRemoteSwiftPackageReference "GRDB" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = B9BAF2122F456B9F00558D8C /* Products */;
@@ -362,14 +358,6 @@
 				minimumVersion = 2.4.1;
 			};
 		};
-		B9BAF28B2F458F6800558D8C /* XCRemoteSwiftPackageReference "GRDB" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/groue/GRDB.swift";
-			requirement = {
-				branch = master;
-				kind = branch;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -377,11 +365,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B9BAF2322F456C0000558D8C /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
 			productName = MarkdownUI;
-		};
-		B9BAF28C2F458F6800558D8C /* GRDB */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = B9BAF28B2F458F6800558D8C /* XCRemoteSwiftPackageReference "GRDB" */;
-			productName = GRDB;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

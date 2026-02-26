@@ -1,161 +1,229 @@
 import Foundation
-import GRDB
+
+// API response wrapper
+private struct APIResponse<T: Decodable>: Decodable {
+    let success: Bool
+    let data: T?
+    let error: String?
+}
+
+private struct TaskAPIData: Decodable {
+    let id: Int64
+    let name: String
+    let status: String
+    let priority: String?
+    let category: String?
+    let due_date: String?
+    let completed_date: String?
+    let parent_task_id: Int64?
+    let tags: String?
+    let memo: String?
+    let created_at: String
+    let updated_at: String
+    let subtasks: [TaskAPIData]?
+
+    func toTaskItem() -> TaskItem {
+        TaskItem(
+            id: id, name: name, status: status,
+            priority: priority, category: category,
+            dueDate: due_date, completedDate: completed_date,
+            parentTaskId: parent_task_id, tags: tags, memo: memo,
+            createdAt: created_at, updatedAt: updated_at
+        )
+    }
+}
+
+private struct CreateResponse: Decodable {
+    let id: Int64
+}
 
 final class DatabaseManager: Sendable {
     static let shared = DatabaseManager()
 
-    let dbPool: DatabasePool
-
-    private nonisolated static let dbPath: String = {
-        let home = FileManager.default.homeDirectoryForCurrentUser.path
-        return "\(home)/workspace/task/tasks.db"
-    }()
-
-    nonisolated static var databasePath: String { dbPath }
+    private let apiURL: String
+    private let apiKey: String
 
     private init() {
-        do {
-            var config = Configuration()
-            config.prepareDatabase { db in
-                try db.execute(sql: "PRAGMA foreign_keys=ON")
-                try db.execute(sql: "PRAGMA journal_mode=WAL")
-                try db.execute(sql: "PRAGMA busy_timeout=10000")
-                try db.execute(sql: "PRAGMA synchronous=NORMAL")
-            }
-            dbPool = try DatabasePool(path: Self.dbPath, configuration: config)
-        } catch {
-            fatalError("Cannot open database at \(Self.dbPath): \(error)")
+        // APIキーはInfo.plistまたは環境変数から読み込み
+        let bundle = Bundle.main
+        self.apiURL = bundle.object(forInfoDictionaryKey: "TASKM_API_URL") as? String
+            ?? ProcessInfo.processInfo.environment["TASKM_API_URL"]
+            ?? ""
+        self.apiKey = bundle.object(forInfoDictionaryKey: "TASKM_API_KEY") as? String
+            ?? ProcessInfo.processInfo.environment["TASKM_API_KEY"]
+            ?? ""
+    }
+
+    // MARK: - API Helper
+
+    private func request<T: Decodable>(
+        path: String,
+        method: String = "GET",
+        body: [String: Any]? = nil
+    ) async throws -> T {
+        guard let url = URL(string: "\(apiURL)/api\(path)") else {
+            throw APIError.invalidURL
+        }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let body {
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(APIResponse<String>.self, from: data)
+            throw APIError.serverError(errorResponse?.error ?? "Unknown error")
+        }
+
+        let decoded = try JSONDecoder().decode(APIResponse<T>.self, from: data)
+        guard decoded.success, let result = decoded.data else {
+            throw APIError.serverError(decoded.error ?? "Unknown error")
+        }
+        return result
+    }
+
+    private func requestVoid(
+        path: String,
+        method: String = "GET",
+        body: [String: Any]? = nil
+    ) async throws {
+        guard let url = URL(string: "\(apiURL)/api\(path)") else {
+            throw APIError.invalidURL
+        }
+
+        var req = URLRequest(url: url)
+        req.httpMethod = method
+        req.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        if let body {
+            req.httpBody = try JSONSerialization.data(withJSONObject: body)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(APIResponse<String>.self, from: data)
+            throw APIError.serverError(errorResponse?.error ?? "Unknown error")
         }
     }
 
     // MARK: - Read
 
-    nonisolated func fetchParentTasks() throws -> [TaskItem] {
-        try dbPool.read { db in
-            try TaskItem
-                .filter(Column("parent_task_id") == nil)
-                .filter(Column("status") != TaskStatus.archived.rawValue)
-                .order(
-                    sql: """
-                        CASE priority
-                            WHEN '高' THEN 0 WHEN '中' THEN 1 WHEN '低' THEN 2
-                            ELSE 3
-                        END ASC,
-                        CASE WHEN due_date IS NULL THEN 1 ELSE 0 END ASC,
-                        due_date ASC
-                    """
-                )
-                .fetchAll(db)
-        }
+    func fetchParentTasks() async throws -> [TaskItem] {
+        let tasks: [TaskAPIData] = try await request(
+            path: "/tasks?include_subtasks=false"
+        )
+        return tasks
+            .filter { $0.parent_task_id == nil && $0.status != "アーカイブ" }
+            .map { $0.toTaskItem() }
     }
 
-    nonisolated func fetchAllSubtasks() throws -> [Int64: [TaskItem]] {
-        try dbPool.read { db in
-            let subtasks = try TaskItem
-                .filter(Column("parent_task_id") != nil)
-                .order(Column("id"))
-                .fetchAll(db)
-            return Dictionary(grouping: subtasks) { $0.parentTaskId! }
+    func fetchAllSubtasks() async throws -> [Int64: [TaskItem]] {
+        let tasks: [TaskAPIData] = try await request(
+            path: "/tasks?show_all=true&include_subtasks=true"
+        )
+        var result: [Int64: [TaskItem]] = [:]
+        for task in tasks {
+            if let subtasks = task.subtasks, !subtasks.isEmpty {
+                result[task.id] = subtasks.map { $0.toTaskItem() }
+            }
         }
+        return result
     }
 
-    nonisolated func fetchSubtasks(forParentId parentId: Int64) throws -> [TaskItem] {
-        try dbPool.read { db in
-            try TaskItem
-                .filter(Column("parent_task_id") == parentId)
-                .order(Column("id"))
-                .fetchAll(db)
-        }
+    func fetchSubtasks(forParentId parentId: Int64) async throws -> [TaskItem] {
+        let task: TaskAPIData = try await request(path: "/tasks/\(parentId)")
+        return task.subtasks?.map { $0.toTaskItem() } ?? []
     }
 
     // MARK: - Write
 
-    nonisolated func updateTaskStatus(_ id: Int64, status: TaskStatus) throws {
-        try dbPool.write { db in
-            if status == .completed {
-                try db.execute(
-                    sql: """
-                        UPDATE tasks SET status = ?,
-                            completed_date = date('now','localtime'),
-                            updated_at = datetime('now','localtime')
-                        WHERE id = ?
-                    """,
-                    arguments: [status.rawValue, id]
-                )
-            } else {
-                try db.execute(
-                    sql: """
-                        UPDATE tasks SET status = ?,
-                            updated_at = datetime('now','localtime')
-                        WHERE id = ?
-                    """,
-                    arguments: [status.rawValue, id]
-                )
-            }
-        }
-    }
-
-    nonisolated func insertTask(_ task: TaskItem) throws -> Int64 {
-        try dbPool.write { db in
-            try db.execute(
-                sql: """
-                    INSERT INTO tasks (name, status, priority, category, due_date, parent_task_id, tags, memo,
-                        created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?,
-                        datetime('now','localtime'), datetime('now','localtime'))
-                """,
-                arguments: [
-                    task.name, task.status, task.priority, task.category,
-                    task.dueDate, task.parentTaskId, task.tags, task.memo,
-                ]
+    func updateTaskStatus(_ id: Int64, status: TaskStatus) async throws {
+        if status == .completed {
+            try await requestVoid(
+                path: "/tasks/\(id)/complete",
+                method: "POST",
+                body: ["complete_subtasks": false]
             )
-            return db.lastInsertedRowID
+        } else {
+            try await requestVoid(
+                path: "/tasks/\(id)",
+                method: "PUT",
+                body: ["status": status.rawValue]
+            )
         }
     }
 
-    nonisolated func updateTask(_ task: TaskItem) throws {
+    func insertTask(_ task: TaskItem) async throws -> Int64 {
+        var body: [String: Any] = ["name": task.name]
+        body["status"] = task.status
+        if let p = task.priority { body["priority"] = p }
+        if let c = task.category { body["category"] = c }
+        if let d = task.dueDate { body["due_date"] = d }
+        if let t = task.tags { body["tags"] = t }
+        if let m = task.memo { body["memo"] = m }
+        if let pid = task.parentTaskId { body["parent_task_id"] = pid }
+
+        let result: CreateResponse = try await request(
+            path: "/tasks",
+            method: "POST",
+            body: body
+        )
+        return result.id
+    }
+
+    func updateTask(_ task: TaskItem) async throws {
         guard let id = task.id else { return }
-        try dbPool.write { db in
-            try db.execute(
-                sql: """
-                    UPDATE tasks SET name=?, status=?, priority=?, category=?,
-                        due_date=?, parent_task_id=?, tags=?, memo=?,
-                        updated_at=datetime('now','localtime')
-                    WHERE id=?
-                """,
-                arguments: [
-                    task.name, task.status, task.priority, task.category,
-                    task.dueDate, task.parentTaskId, task.tags, task.memo, id,
-                ]
-            )
-        }
+        var body: [String: Any] = [
+            "name": task.name,
+            "status": task.status,
+        ]
+        body["priority"] = task.priority as Any
+        body["category"] = task.category as Any
+        body["due_date"] = task.dueDate as Any
+        body["tags"] = task.tags as Any
+        body["memo"] = task.memo as Any
+
+        try await requestVoid(
+            path: "/tasks/\(id)",
+            method: "PUT",
+            body: body
+        )
     }
 
-    nonisolated func deleteTask(_ id: Int64) throws {
-        try dbPool.write { db in
-            try db.execute(sql: "DELETE FROM tasks WHERE parent_task_id = ?", arguments: [id])
-            try db.execute(sql: "DELETE FROM tasks WHERE id = ?", arguments: [id])
-        }
+    func deleteTask(_ id: Int64) async throws {
+        try await requestVoid(
+            path: "/tasks/\(id)",
+            method: "DELETE"
+        )
     }
 
-    nonisolated func completeTaskWithSubtasks(_ id: Int64) throws {
-        try dbPool.write { db in
-            try db.execute(
-                sql: """
-                    UPDATE tasks SET status='完了', completed_date=date('now','localtime'),
-                        updated_at=datetime('now','localtime')
-                    WHERE parent_task_id = ? AND status != '完了'
-                """,
-                arguments: [id]
-            )
-            try db.execute(
-                sql: """
-                    UPDATE tasks SET status='完了', completed_date=date('now','localtime'),
-                        updated_at=datetime('now','localtime')
-                    WHERE id = ?
-                """,
-                arguments: [id]
-            )
+    func completeTaskWithSubtasks(_ id: Int64) async throws {
+        try await requestVoid(
+            path: "/tasks/\(id)/complete",
+            method: "POST",
+            body: ["complete_subtasks": true]
+        )
+    }
+}
+
+enum APIError: LocalizedError {
+    case invalidURL
+    case serverError(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .invalidURL: return "Invalid API URL"
+        case .serverError(let msg): return msg
         }
     }
 }

@@ -1,9 +1,6 @@
 import Foundation
-import GRDB
 
-struct TaskItem: Identifiable, Codable, FetchableRecord, PersistableRecord, Sendable, Equatable {
-    static let databaseTableName = "tasks"
-
+struct TaskItem: Identifiable, Codable, Sendable, Equatable {
     var id: Int64?
     var name: String
     var status: String

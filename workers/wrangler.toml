@@ -1,8 +1,13 @@
 name = "taskm-api"
 main = "src/index.ts"
-compatibility_date = "2024-09-25"
+compatibility_date = "2025-03-10"
+compatibility_flags = ["nodejs_compat"]
 
 [[d1_databases]]
 binding = "DB"
 database_name = "taskm"
-database_id = "placeholder"
+database_id = "fef5b967-985d-47d6-b8eb-ec37f24f1488"
+
+[[kv_namespaces]]
+binding = "OAUTH_KV"
+id = "e9120756a65846b6b8896cbef0259e23"

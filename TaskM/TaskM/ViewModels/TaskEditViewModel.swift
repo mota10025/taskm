@@ -26,12 +26,12 @@ final class TaskEditViewModel {
     func save() {
         let db = DatabaseManager.shared
         let taskCopy = task
-        Task.detached {
+        Task {
             do {
-                try db.updateTask(taskCopy)
-                await MainActor.run { self.kanbanVM.loadTasks() }
+                try await db.updateTask(taskCopy)
+                self.kanbanVM.loadTasks()
             } catch {
-                await MainActor.run { self.kanbanVM.errorMessage = error.localizedDescription }
+                self.kanbanVM.errorMessage = error.localizedDescription
             }
         }
     }
@@ -45,17 +45,15 @@ final class TaskEditViewModel {
         guard !newSubtaskName.isEmpty, let parentId = task.id else { return }
         let subtask = TaskItem(name: newSubtaskName, parentTaskId: parentId)
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                _ = try db.insertTask(subtask)
-                let updated = try db.fetchSubtasks(forParentId: parentId)
-                await MainActor.run {
-                    self.subtasks = updated
-                    self.newSubtaskName = ""
-                    self.kanbanVM.loadTasks()
-                }
+                _ = try await db.insertTask(subtask)
+                let updated = try await db.fetchSubtasks(forParentId: parentId)
+                self.subtasks = updated
+                self.newSubtaskName = ""
+                self.kanbanVM.loadTasks()
             } catch {
-                await MainActor.run { self.kanbanVM.errorMessage = error.localizedDescription }
+                self.kanbanVM.errorMessage = error.localizedDescription
             }
         }
     }
@@ -64,18 +62,16 @@ final class TaskEditViewModel {
         guard let id = subtask.id else { return }
         let newStatus: TaskStatus = subtask.taskStatus == .completed ? .notStarted : .completed
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                try db.updateTaskStatus(id, status: newStatus)
+                try await db.updateTaskStatus(id, status: newStatus)
                 if let parentId = subtask.parentTaskId {
-                    let updated = try db.fetchSubtasks(forParentId: parentId)
-                    await MainActor.run {
-                        self.subtasks = updated
-                        self.kanbanVM.loadTasks()
-                    }
+                    let updated = try await db.fetchSubtasks(forParentId: parentId)
+                    self.subtasks = updated
+                    self.kanbanVM.loadTasks()
                 }
             } catch {
-                await MainActor.run { self.kanbanVM.errorMessage = error.localizedDescription }
+                self.kanbanVM.errorMessage = error.localizedDescription
             }
         }
     }
@@ -83,18 +79,16 @@ final class TaskEditViewModel {
     func deleteSubtask(_ subtask: TaskItem) {
         guard let id = subtask.id else { return }
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                try db.deleteTask(id)
+                try await db.deleteTask(id)
                 if let parentId = subtask.parentTaskId {
-                    let updated = try db.fetchSubtasks(forParentId: parentId)
-                    await MainActor.run {
-                        self.subtasks = updated
-                        self.kanbanVM.loadTasks()
-                    }
+                    let updated = try await db.fetchSubtasks(forParentId: parentId)
+                    self.subtasks = updated
+                    self.kanbanVM.loadTasks()
                 }
             } catch {
-                await MainActor.run { self.kanbanVM.errorMessage = error.localizedDescription }
+                self.kanbanVM.errorMessage = error.localizedDescription
             }
         }
     }
@@ -102,12 +96,12 @@ final class TaskEditViewModel {
     func completeParentWithSubtasks() {
         guard let id = task.id else { return }
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                try db.completeTaskWithSubtasks(id)
-                await MainActor.run { self.kanbanVM.loadTasks() }
+                try await db.completeTaskWithSubtasks(id)
+                self.kanbanVM.loadTasks()
             } catch {
-                await MainActor.run { self.kanbanVM.errorMessage = error.localizedDescription }
+                self.kanbanVM.errorMessage = error.localizedDescription
             }
         }
     }

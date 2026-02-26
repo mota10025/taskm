@@ -14,31 +14,27 @@ final class KanbanViewModel {
     var selectedCategories: Set<TaskCategory> = []
     var isFilterActive: Bool { !selectedPriorities.isEmpty || !selectedCategories.isEmpty }
 
-    private var fileWatcher: DatabaseFileWatcher?
+    private var pollingTask: Task<Void, Never>?
 
     init() {
         loadTasks()
-        startWatching()
+        startPolling()
     }
 
     func loadTasks() {
         isLoading = true
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                let tasks = try db.fetchParentTasks()
-                let subtasks = try db.fetchAllSubtasks()
-                await MainActor.run {
-                    self.parentTasks = tasks
-                    self.subtasksByParentId = subtasks
-                    self.isLoading = false
-                    self.errorMessage = nil
-                }
+                let tasks = try await db.fetchParentTasks()
+                let subtasks = try await db.fetchAllSubtasks()
+                self.parentTasks = tasks
+                self.subtasksByParentId = subtasks
+                self.isLoading = false
+                self.errorMessage = nil
             } catch {
-                await MainActor.run {
-                    self.errorMessage = error.localizedDescription
-                    self.isLoading = false
-                }
+                self.errorMessage = error.localizedDescription
+                self.isLoading = false
             }
         }
     }
@@ -72,44 +68,47 @@ final class KanbanViewModel {
 
     func moveTask(_ taskId: Int64, to status: TaskStatus) {
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                try db.updateTaskStatus(taskId, status: status)
-                await MainActor.run { self.loadTasks() }
+                try await db.updateTaskStatus(taskId, status: status)
+                self.loadTasks()
             } catch {
-                await MainActor.run { self.errorMessage = error.localizedDescription }
+                self.errorMessage = error.localizedDescription
             }
         }
     }
 
     func addTask(_ task: TaskItem) {
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                _ = try db.insertTask(task)
-                await MainActor.run { self.loadTasks() }
+                _ = try await db.insertTask(task)
+                self.loadTasks()
             } catch {
-                await MainActor.run { self.errorMessage = error.localizedDescription }
+                self.errorMessage = error.localizedDescription
             }
         }
     }
 
     func deleteTask(_ id: Int64) {
         let db = DatabaseManager.shared
-        Task.detached {
+        Task {
             do {
-                try db.deleteTask(id)
-                await MainActor.run { self.loadTasks() }
+                try await db.deleteTask(id)
+                self.loadTasks()
             } catch {
-                await MainActor.run { self.errorMessage = error.localizedDescription }
+                self.errorMessage = error.localizedDescription
             }
         }
     }
 
-    private func startWatching() {
-        fileWatcher = DatabaseFileWatcher(dbPath: DatabaseManager.databasePath) { [weak self] in
-            DispatchQueue.main.async {
-                self?.loadTasks()
+    private func startPolling() {
+        pollingTask = Task {
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(5))
+                if !Task.isCancelled {
+                    self.loadTasks()
+                }
             }
         }
     }
