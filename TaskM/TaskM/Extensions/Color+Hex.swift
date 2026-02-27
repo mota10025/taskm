@@ -10,4 +10,11 @@ extension Color {
             opacity: opacity
         )
     }
+
+    init(hexString: String, opacity: Double = 1.0) {
+        let hex = hexString.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        var value: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&value)
+        self.init(hex: UInt(value), opacity: opacity)
+    }
 }

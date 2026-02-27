@@ -69,7 +69,7 @@ npx wrangler secret put ALLOWED_EMAIL    # OAuth認証で許可するメール�
 ### 2. Webカンバンボード（Cloudflare Pages）
 
 ```bash
-npx wrangler pages deploy web/ --project-name=taskm-web --branch=main
+npx wrangler pages deploy web/ --project-name=taskm-web --branch=cloud
 ```
 
 `web/config.js` を作成（gitignore対象）:
@@ -322,3 +322,59 @@ npx wrangler secret put ALLOWED_EMAIL    # 許可するメールアドレス（1
 | macOSアプリ | SwiftUI + URLSession |
 | ローカルMCP | Node.js + MCP SDK |
 | CLI | Bash + sqlite3 |
+
+## リリースノート
+
+### 2026-02-27
+
+#### カテゴリの自由追加
+
+- カテゴリが固定3種（SPECRA / 業務委託 / 個人）に限定されていたのを、自由な名前で追加できるように変更
+- Webカンバンの編集モーダルをテキスト入力 + 候補リストに変更（既存カテゴリは候補として表示）
+- MCP / REST API のカテゴリバリデーションを自由文字列に変更
+- フィルターバーのカテゴリチップをタスクに応じて動的生成
+
+#### カンバンボードにタグ表示
+
+- タスクカードにタグをバッジとして表示（カンマ区切りで複数対応）
+
+#### カンバンボードのソート・並び替え
+
+- `sort_order` カラムを追加（マイグレーション: `0002_add_sort_order.sql`）
+- デフォルトの並び順を `sort_order` → `created_at` の昇順に変更
+- カード間のドラッグ&ドロップで並び順を自由に変更可能（ドロップ位置にインジケーター表示）
+- 並び替え結果はAPIに保存され永続化
+
+#### カテゴリ管理機能
+
+- D1に `categories` テーブルを追加（マイグレーション: `0003_add_categories.sql`, `0004_add_category_text_color.sql`）
+- カテゴリごとに背景色・文字色をカスタマイズ可能
+- Web・macOSアプリに設定モーダルを追加（ColorPicker + プレビュー + 名前変更 + 削除）
+- `GET /tasks` レスポンスに `categories` フィールドを含め、1回のAPI呼び出しでタスクとカテゴリを取得
+- `POST/PUT/DELETE /categories` エンドポイント追加
+- タスク編集モーダルで新規カテゴリ入力時、`categories` テーブルに自動登録
+
+#### カテゴリフィルタをドロップダウンに変更
+
+- カテゴリフィルタを固定チップからドロップダウン（複数選択チェックボックス）に変更
+- カテゴリ一覧はDBに登録済みのもののみ表示（タスクデータからの動的生成を廃止）
+- Web: ドロップダウンメニュー + チェックボックス
+- macOS: ポップオーバー + チェックボックス
+
+#### タグ表示改善
+
+- Web: タグを白背景+枠線のラベルに変更（視認性向上）
+- macOS: タスクカードにタグバッジを表示
+
+#### Cloudflare Pages プロダクションブランチ変更
+
+- Pages のプロダクションブランチを `main` → `cloud` に変更（リポジトリのブランチ構成に合わせて）
+
+**デプロイ手順:**
+
+```bash
+cd workers
+npx wrangler d1 migrations apply taskm   # categories テーブル + text_color カラム追加
+npx wrangler deploy                       # Workers デプロイ
+npx wrangler pages deploy web/ --project-name=taskm-web --branch=cloud  # Pages デプロイ
+```

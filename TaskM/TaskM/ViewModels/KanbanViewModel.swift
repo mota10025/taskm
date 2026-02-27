@@ -1,18 +1,25 @@
 import Foundation
 import Observation
+import SwiftUI
 
 @MainActor
 @Observable
 final class KanbanViewModel {
     var parentTasks: [TaskItem] = []
     var subtasksByParentId: [Int64: [TaskItem]] = [:]
+    var categories: [CategoryItem] = []
     var isLoading = false
     var errorMessage: String?
 
     // フィルタ
     var selectedPriorities: Set<TaskPriority> = []
-    var selectedCategories: Set<TaskCategory> = []
+    var selectedCategories: Set<String> = []
     var isFilterActive: Bool { !selectedPriorities.isEmpty || !selectedCategories.isEmpty }
+
+    // DBのcategoriesテーブルに登録されているカテゴリのみ
+    var allCategories: [String] {
+        categories.map(\.name)
+    }
 
     private var pollingTask: Task<Void, Never>?
 
@@ -26,9 +33,10 @@ final class KanbanViewModel {
         let db = DatabaseManager.shared
         Task {
             do {
-                let tasks = try await db.fetchParentTasks()
+                let result = try await db.fetchParentTasksWithCategories()
                 let subtasks = try await db.fetchAllSubtasks()
-                self.parentTasks = tasks
+                self.parentTasks = result.tasks
+                self.categories = result.categories
                 self.subtasksByParentId = subtasks
                 self.isLoading = false
                 self.errorMessage = nil
@@ -39,6 +47,20 @@ final class KanbanViewModel {
         }
     }
 
+    func categoryColor(for name: String) -> Color {
+        if let cat = categories.first(where: { $0.name == name }) {
+            return Color(hexString: cat.color)
+        }
+        return AppColors.categoryColor(name)
+    }
+
+    func categoryTextColor(for name: String) -> Color {
+        if let cat = categories.first(where: { $0.name == name }) {
+            return Color(hexString: cat.textColor)
+        }
+        return Color(hex: 0x2a2a2a)
+    }
+
     func tasksForStatus(_ status: TaskStatus) -> [TaskItem] {
         parentTasks.filter { task in
             guard task.taskStatus == status else { return false }
@@ -46,7 +68,7 @@ final class KanbanViewModel {
                 guard let p = task.taskPriority, selectedPriorities.contains(p) else { return false }
             }
             if !selectedCategories.isEmpty {
-                guard let c = task.taskCategory, selectedCategories.contains(c) else { return false }
+                guard let c = task.category, selectedCategories.contains(c) else { return false }
             }
             return true
         }

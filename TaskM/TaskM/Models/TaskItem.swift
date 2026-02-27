@@ -34,9 +34,8 @@ struct TaskItem: Identifiable, Codable, Sendable, Equatable {
         set { priority = newValue?.rawValue }
     }
 
-    var taskCategory: TaskCategory? {
-        get { category.flatMap { TaskCategory(rawValue: $0) } }
-        set { category = newValue?.rawValue }
+    var knownCategory: KnownCategory? {
+        category.flatMap { KnownCategory(rawValue: $0) }
     }
 
     var isSubtask: Bool { parentTaskId != nil }

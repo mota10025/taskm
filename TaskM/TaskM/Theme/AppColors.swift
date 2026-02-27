@@ -24,11 +24,14 @@ enum AppColors {
         }
     }
 
-    static func categoryColor(_ category: TaskCategory) -> Color {
-        switch category {
-        case .specra:   return Color(hex: 0x82b5d6)
-        case .contract: return Color(hex: 0xd4c07a)
-        case .personal: return Color(hex: 0xb8a0d2)
+    static func categoryColor(_ category: String) -> Color {
+        if let known = KnownCategory(rawValue: category) {
+            switch known {
+            case .specra:   return Color(hex: 0x82b5d6)
+            case .contract: return Color(hex: 0xd4c07a)
+            case .personal: return Color(hex: 0xb8a0d2)
+            }
         }
+        return Color(hex: 0x8a8a8a) // カスタムカテゴリのデフォルト色
     }
 }

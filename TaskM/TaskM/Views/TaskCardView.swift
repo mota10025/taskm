@@ -4,6 +4,8 @@ struct TaskCardView: View {
     let task: TaskItem
     let subtasks: [TaskItem]
     let completedCount: Int
+    var categoryColor: Color?
+    var categoryTextColor: Color?
     @State private var isExpanded = false
 
     var body: some View {
@@ -24,13 +26,13 @@ struct TaskCardView: View {
                         .cornerRadius(4)
                 }
 
-                if let category = task.taskCategory {
-                    Text(category.rawValue)
+                if let category = task.category {
+                    Text(category)
                         .font(.system(size: 12, weight: .medium))
                         .padding(.horizontal, 7)
                         .padding(.vertical, 3)
-                        .background(AppColors.categoryColor(category))
-                        .foregroundColor(Color(hex: 0x2a2a2a))
+                        .background(categoryColor ?? AppColors.categoryColor(category))
+                        .foregroundColor(categoryTextColor ?? Color(hex: 0x2a2a2a))
                         .cornerRadius(4)
                 }
 
@@ -40,6 +42,28 @@ struct TaskCardView: View {
                     Image(systemName: "doc.text")
                         .font(.system(size: 12))
                         .foregroundColor(.gray)
+                }
+            }
+
+            // タグ
+            if let tags = task.tags, !tags.isEmpty {
+                let tagList = tags.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }
+                if !tagList.isEmpty {
+                    HStack(spacing: 4) {
+                        ForEach(tagList, id: \.self) { tag in
+                            Text(tag)
+                                .font(.system(size: 11))
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.white.opacity(0.85))
+                                .foregroundColor(Color(hex: 0x333333))
+                                .cornerRadius(3)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 3)
+                                        .stroke(Color.black.opacity(0.15), lineWidth: 1)
+                                )
+                        }
+                    }
                 }
             }
 

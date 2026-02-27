@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import type { Bindings } from "./types";
 import { authMiddleware } from "./middleware/auth";
 import { tasks } from "./routes/tasks";
+import { categories } from "./routes/categories";
 import { createMcpServer } from "./mcp/server";
 import { authHandler, validateAccessToken } from "./mcp/auth";
 import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
@@ -25,6 +26,7 @@ app.use("/api/*", async (c, next) => {
   c.header("X-Frame-Options", "DENY");
 });
 app.route("/api", tasks);
+app.route("/api", categories);
 app.get("/", (c) => c.json({ status: "ok", service: "taskm-api" }));
 
 // ── Export ──

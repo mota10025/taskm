@@ -73,8 +73,8 @@ struct TaskEditView: View {
                                     .foregroundColor(.gray)
                                 Picker("", selection: $viewModel.task.category) {
                                     Text("なし").tag(nil as String?)
-                                    ForEach(TaskCategory.allCases, id: \.self) { c in
-                                        Text(c.rawValue).tag(c.rawValue as String?)
+                                    ForEach(viewModel.allCategories, id: \.self) { c in
+                                        Text(c).tag(c as String?)
                                     }
                                 }
                                 .labelsHidden()

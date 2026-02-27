@@ -2,6 +2,7 @@ import SwiftUI
 
 struct TaskAddFormView: View {
     let status: TaskStatus
+    let categories: [String]
     let onSave: (TaskItem) -> Void
     let onCancel: () -> Void
 
@@ -39,8 +40,8 @@ struct TaskAddFormView: View {
 
                 Picker("", selection: $category) {
                     Text("カテゴリ").tag(nil as String?)
-                    ForEach(TaskCategory.allCases, id: \.self) { c in
-                        Text(c.rawValue).tag(c.rawValue as String?)
+                    ForEach(categories, id: \.self) { c in
+                        Text(c).tag(c as String?)
                     }
                 }
                 .frame(width: 80)

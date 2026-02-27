@@ -1,0 +1,1 @@
+ALTER TABLE categories ADD COLUMN text_color TEXT NOT NULL DEFAULT '#2a2a2a';

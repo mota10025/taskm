@@ -10,6 +10,7 @@ import SwiftUI
 struct ContentView: View {
     @Bindable var viewModel: KanbanViewModel
     @State private var editingTask: TaskItem?
+    @State private var showSettings = false
 
     init(viewModel: KanbanViewModel) {
         self.viewModel = viewModel
@@ -29,6 +30,14 @@ struct ContentView: View {
                         Text("TaskM")
                             .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
+
+                        Button(action: { showSettings = true }) {
+                            Image(systemName: "gearshape")
+                                .font(.system(size: 14))
+                                .foregroundColor(.gray)
+                        }
+                        .buttonStyle(.plain)
+
                         Spacer()
                         if let error = viewModel.errorMessage {
                             Text(error)
@@ -65,6 +74,10 @@ struct ContentView: View {
                 onDismiss: { editingTask = nil }
             )
             .frame(minWidth: 500, minHeight: 500)
+        }
+        .sheet(isPresented: $showSettings) {
+            CategorySettingsView(viewModel: viewModel)
+                .frame(minWidth: 400, minHeight: 350)
         }
     }
 }

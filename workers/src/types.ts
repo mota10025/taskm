@@ -17,10 +17,19 @@ export interface Task {
   parent_task_id: number | null;
   tags: string | null;
   memo: string | null;
+  sort_order: number;
   created_at: string;
   updated_at: string;
 }
 
 export interface TaskWithSubtasks extends Task {
   subtasks: Task[];
+}
+
+export interface Category {
+  name: string;
+  color: string;
+  text_color: string;
+  created_at: string;
+  updated_at: string;
 }

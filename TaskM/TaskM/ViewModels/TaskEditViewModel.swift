@@ -13,6 +13,8 @@ final class TaskEditViewModel {
 
     private let kanbanVM: KanbanViewModel
 
+    var allCategories: [String] { kanbanVM.allCategories }
+
     init(task: TaskItem, kanbanVM: KanbanViewModel) {
         self.task = task
         self.kanbanVM = kanbanVM

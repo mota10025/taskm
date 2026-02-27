@@ -121,7 +121,7 @@ server.tool(
   {
     name: z.string().describe("タスク名"),
     priority: z.enum(["高", "中", "低"]).optional().describe("優先度"),
-    category: z.enum(["SPECRA", "業務委託", "個人"]).optional().describe("カテゴリ"),
+    category: z.string().optional().describe("カテゴリ（例: SPECRA, 業務委託, 個人 など自由入力）"),
     due_date: z.string().optional().describe("期限（YYYY-MM-DD形式）"),
     status: z.enum(["未着手", "進行中", "今日やる"]).optional().describe("ステータス（デフォルト: 未着手）"),
     tags: z.string().optional().describe("タグ（カンマ区切り）"),
@@ -158,7 +158,7 @@ server.tool(
     name: z.string().optional().describe("タスク名"),
     status: z.enum(["未着手", "進行中", "今日やる", "完了", "アーカイブ"]).optional().describe("ステータス"),
     priority: z.enum(["高", "中", "低"]).nullable().optional().describe("優先度（nullで解除）"),
-    category: z.enum(["SPECRA", "業務委託", "個人"]).nullable().optional().describe("カテゴリ（nullで解除）"),
+    category: z.string().nullable().optional().describe("カテゴリ（nullで解除、自由入力）"),
     due_date: z.string().nullable().optional().describe("期限（YYYY-MM-DD、nullで解除）"),
     tags: z.string().nullable().optional().describe("タグ（nullで解除）"),
     memo: z.string().nullable().optional().describe("メモ（nullで解除）"),

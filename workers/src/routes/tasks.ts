@@ -1,12 +1,12 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { Bindings, Task, TaskWithSubtasks } from "../types";
+import type { Bindings, Task, TaskWithSubtasks, Category } from "../types";
 import { nowJST } from "../utils/date";
 
 // バリデーションスキーマ
 const statusEnum = z.enum(["未着手", "進行中", "今日やる", "完了", "アーカイブ"]);
 const priorityEnum = z.enum(["高", "中", "低"]);
-const categoryEnum = z.enum(["SPECRA", "業務委託", "個人"]);
+const categoryEnum = z.string().min(1);
 const dateStr = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 
 const createTaskSchema = z.object({
@@ -28,6 +28,7 @@ const updateTaskSchema = z.object({
   due_date: dateStr.nullable().optional(),
   tags: z.string().nullable().optional(),
   memo: z.string().nullable().optional(),
+  sort_order: z.number().int().optional(),
 });
 
 const querySchema = z.object({
@@ -72,10 +73,7 @@ tasks.get("/tasks", async (c) => {
     params.push(priority);
   }
 
-  sql += ` ORDER BY
-    CASE priority WHEN '高' THEN 0 WHEN '中' THEN 1 WHEN '低' THEN 2 ELSE 3 END,
-    CASE WHEN due_date IS NULL THEN 1 ELSE 0 END,
-    due_date`;
+  sql += ` ORDER BY sort_order ASC, created_at ASC`;
 
   const stmt = c.env.DB.prepare(sql);
   const { results: parentTasks } = await (params.length > 0
@@ -100,7 +98,12 @@ tasks.get("/tasks", async (c) => {
     subtasks: subtaskMap.get(t.id) || [],
   }));
 
-  return c.json({ success: true, data });
+  // カテゴリ一覧も一緒に返す
+  const { results: cats } = await c.env.DB.prepare(
+    "SELECT * FROM categories ORDER BY created_at ASC"
+  ).all<Category>();
+
+  return c.json({ success: true, data, categories: cats });
 });
 
 // GET /tasks/:id - タスク詳細
@@ -221,6 +224,10 @@ tasks.put("/tasks/:id", async (c) => {
     sets.push("memo = ?");
     params.push(body.memo);
   }
+  if (body.sort_order !== undefined) {
+    sets.push("sort_order = ?");
+    params.push(body.sort_order);
+  }
 
   params.push(id);
   await c.env.DB.prepare(`UPDATE tasks SET ${sets.join(", ")} WHERE id = ?`)
@@ -288,6 +295,42 @@ tasks.delete("/tasks/:id", async (c) => {
     success: true,
     message: `タスク ${id}「${task.name}」を削除しました。`,
   });
+});
+
+// PUT /tasks/reorder - タスク並び替え
+const reorderSchema = z.object({
+  orders: z.array(
+    z.object({
+      id: z.number().int().positive(),
+      sort_order: z.number().int(),
+    })
+  ),
+});
+
+tasks.put("/tasks-reorder", async (c) => {
+  const raw = await c.req.json().catch(() => null);
+  if (!raw) {
+    return c.json({ success: false, error: "無効なJSONです。" }, 400);
+  }
+  const parsed = reorderSchema.safeParse(raw);
+  if (!parsed.success) {
+    return c.json({ success: false, error: parsed.error.issues[0].message }, 400);
+  }
+
+  const { orders } = parsed.data;
+  const { datetime } = nowJST();
+
+  const stmts = orders.map((o) =>
+    c.env.DB.prepare("UPDATE tasks SET sort_order = ?, updated_at = ? WHERE id = ?").bind(
+      o.sort_order,
+      datetime,
+      o.id
+    )
+  );
+
+  await c.env.DB.batch(stmts);
+
+  return c.json({ success: true, message: "並び替えを保存しました。" });
 });
 
 export { tasks };

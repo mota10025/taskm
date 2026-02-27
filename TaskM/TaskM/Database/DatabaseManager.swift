@@ -37,6 +37,14 @@ private struct CreateResponse: Decodable {
     let id: Int64
 }
 
+// GET /tasks レスポンス（tasks + categories を同時に返す）
+private struct TaskListResponse: Decodable {
+    let success: Bool
+    let data: [TaskAPIData]
+    let categories: [CategoryItem]?
+    let error: String?
+}
+
 final class DatabaseManager: Sendable {
     static let shared = DatabaseManager()
 
@@ -112,13 +120,32 @@ final class DatabaseManager: Sendable {
 
     // MARK: - Read
 
-    func fetchParentTasks() async throws -> [TaskItem] {
-        let tasks: [TaskAPIData] = try await request(
-            path: "/tasks?include_subtasks=false"
-        )
-        return tasks
+    func fetchParentTasksWithCategories() async throws -> (tasks: [TaskItem], categories: [CategoryItem]) {
+        guard let url = URL(string: "\(apiURL)/api/tasks?include_subtasks=false") else {
+            throw APIError.invalidURL
+        }
+        var req = URLRequest(url: url)
+        req.httpMethod = "GET"
+        req.setValue(apiKey, forHTTPHeaderField: "X-API-Key")
+        req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let (data, response) = try await URLSession.shared.data(for: req)
+        guard let httpResponse = response as? HTTPURLResponse,
+              (200...299).contains(httpResponse.statusCode) else {
+            let errorResponse = try? JSONDecoder().decode(APIResponse<String>.self, from: data)
+            throw APIError.serverError(errorResponse?.error ?? "Unknown error")
+        }
+
+        let decoded = try JSONDecoder().decode(TaskListResponse.self, from: data)
+        guard decoded.success else {
+            throw APIError.serverError(decoded.error ?? "Unknown error")
+        }
+
+        let tasks = decoded.data
             .filter { $0.parent_task_id == nil && $0.status != "アーカイブ" }
             .map { $0.toTaskItem() }
+        let categories = decoded.categories ?? []
+        return (tasks, categories)
     }
 
     func fetchAllSubtasks() async throws -> [Int64: [TaskItem]] {
@@ -206,6 +233,38 @@ final class DatabaseManager: Sendable {
             path: "/tasks/\(id)/complete",
             method: "POST",
             body: ["complete_subtasks": true]
+        )
+    }
+
+    // MARK: - Categories
+
+    func createCategory(name: String, color: String, textColor: String = "#2a2a2a") async throws {
+        try await requestVoid(
+            path: "/categories",
+            method: "POST",
+            body: ["name": name, "color": color, "text_color": textColor]
+        )
+    }
+
+    func updateCategory(oldName: String, newName: String? = nil, newColor: String? = nil, newTextColor: String? = nil) async throws {
+        var body: [String: Any] = [:]
+        if let n = newName { body["name"] = n }
+        if let c = newColor { body["color"] = c }
+        if let tc = newTextColor { body["text_color"] = tc }
+        guard !body.isEmpty else { return }
+        let encoded = oldName.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? oldName
+        try await requestVoid(
+            path: "/categories/\(encoded)",
+            method: "PUT",
+            body: body
+        )
+    }
+
+    func deleteCategory(name: String) async throws {
+        let encoded = name.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? name
+        try await requestVoid(
+            path: "/categories/\(encoded)",
+            method: "DELETE"
         )
     }
 }

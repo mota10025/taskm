@@ -10,6 +10,7 @@
   <div id="app">
     <header id="header">
       <h1>TaskM</h1>
+      <button id="settings-btn" class="settings-btn" title="カテゴリ管理">&#9881;</button>
       <span id="error-message"></span>
     </header>
 
@@ -21,11 +22,15 @@
         <button class="filter-chip" data-filter="priority" data-value="低">低</button>
       </div>
       <div class="filter-divider"></div>
-      <div class="filter-group">
-        <span class="filter-label">カテゴリ</span>
-        <button class="filter-chip" data-filter="category" data-value="SPECRA">SPECRA</button>
-        <button class="filter-chip" data-filter="category" data-value="業務委託">業務委託</button>
-        <button class="filter-chip" data-filter="category" data-value="個人">個人</button>
+      <div class="filter-group" id="category-filter-group">
+        <div class="category-dropdown">
+          <button class="category-dropdown-btn" id="category-dropdown-btn">
+            <span class="filter-label">カテゴリ</span>
+            <span class="category-selected-count hidden" id="category-selected-count"></span>
+            <span class="dropdown-arrow">▾</span>
+          </button>
+          <div class="category-dropdown-menu hidden" id="category-dropdown-menu"></div>
+        </div>
       </div>
       <button id="clear-filters" class="clear-btn hidden">✕ クリア</button>
     </div>
@@ -69,10 +74,9 @@
             <label>カテゴリ</label>
             <select id="edit-category">
               <option value="">なし</option>
-              <option value="SPECRA">SPECRA</option>
-              <option value="業務委託">業務委託</option>
-              <option value="個人">個人</option>
             </select>
+            <input type="text" id="edit-category-custom" placeholder="新しいカテゴリを入力..." class="hidden">
+            <button type="button" id="toggle-category-input" class="category-toggle-btn">+ 新規カテゴリ</button>
           </div>
         </div>
         <div class="form-group">
@@ -101,6 +105,26 @@
         <div class="modal-footer-right">
           <button class="btn-secondary" id="modal-cancel">キャンセル</button>
           <button class="btn-primary" id="modal-save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- カテゴリ管理モーダル -->
+  <div id="settings-modal" class="modal hidden">
+    <div class="modal-backdrop" id="settings-backdrop"></div>
+    <div class="modal-content" style="width:420px;">
+      <div class="modal-header">
+        <span class="modal-title">カテゴリ管理</span>
+        <button class="modal-close" id="settings-close">&#10005;</button>
+      </div>
+      <div class="modal-body">
+        <div id="category-list"></div>
+        <div class="category-add-row">
+          <input type="text" id="new-category-name" placeholder="カテゴリ名">
+          <input type="color" id="new-category-color" class="category-color-input" value="#8a8a8a" title="背景色">
+          <input type="color" id="new-category-text-color" class="category-color-input" value="#2a2a2a" title="文字色">
+          <button class="btn-primary" id="add-category-btn">追加</button>
         </div>
       </div>
     </div>
