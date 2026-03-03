@@ -16,6 +16,9 @@ final class KanbanViewModel {
     var selectedCategories: Set<String> = []
     var isFilterActive: Bool { !selectedPriorities.isEmpty || !selectedCategories.isEmpty }
 
+    // 編集中はポーリングを一時停止
+    var isEditing = false
+
     // DBのcategoriesテーブルに登録されているカテゴリのみ
     var allCategories: [String] {
         categories.map(\.name)
@@ -128,7 +131,7 @@ final class KanbanViewModel {
         pollingTask = Task {
             while !Task.isCancelled {
                 try? await Task.sleep(for: .seconds(5))
-                if !Task.isCancelled {
+                if !Task.isCancelled && !self.isEditing {
                     self.loadTasks()
                 }
             }

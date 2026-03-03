@@ -9,7 +9,7 @@ import SwiftUI
 
 struct ContentView: View {
     @Bindable var viewModel: KanbanViewModel
-    @State private var editingTask: TaskItem?
+    @State private var editViewModel: TaskEditViewModel?
     @State private var showSettings = false
 
     init(viewModel: KanbanViewModel) {
@@ -24,56 +24,74 @@ struct ContentView: View {
                 ProgressView()
                     .progressViewStyle(.circular)
             } else {
-                VStack(spacing: 0) {
-                    // ヘッダー
-                    HStack {
-                        Text("TaskM")
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
+                HStack(spacing: 0) {
+                    // メインコンテンツ
+                    VStack(spacing: 0) {
+                        // ヘッダー
+                        HStack {
+                            Text("TaskM")
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
 
-                        Button(action: { showSettings = true }) {
-                            Image(systemName: "gearshape")
-                                .font(.system(size: 14))
-                                .foregroundColor(.gray)
-                        }
-                        .buttonStyle(.plain)
+                            Button(action: { showSettings = true }) {
+                                Image(systemName: "gearshape")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.gray)
+                            }
+                            .buttonStyle(.plain)
 
-                        Spacer()
-                        if let error = viewModel.errorMessage {
-                            Text(error)
-                                .font(.system(size: 13))
-                                .foregroundColor(Color(hex: 0xf04438))
-                                .lineLimit(1)
+                            Spacer()
+                            if let error = viewModel.errorMessage {
+                                Text(error)
+                                    .font(.system(size: 13))
+                                    .foregroundColor(Color(hex: 0xf04438))
+                                    .lineLimit(1)
+                            }
                         }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+
+                        // フィルタバー
+                        FilterBarView(viewModel: viewModel)
+
+                        // カンバンボード
+                        HStack(alignment: .top, spacing: 12) {
+                            ForEach(TaskStatus.kanbanStatuses, id: \.self) { status in
+                                KanbanColumnView(
+                                    status: status,
+                                    tasks: viewModel.tasksForStatus(status),
+                                    viewModel: viewModel,
+                                    onCardTap: { task in
+                                        let vm = TaskEditViewModel(task: task, kanbanVM: viewModel)
+                                        editViewModel = vm
+                                        viewModel.isEditing = true
+                                    }
+                                )
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.bottom, 12)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
 
-                    // フィルタバー
-                    FilterBarView(viewModel: viewModel)
+                    // 右側編集パネル
+                    if let editVM = editViewModel {
+                        Divider().background(Color.white.opacity(0.2))
 
-                    // カンバンボード
-                    HStack(alignment: .top, spacing: 12) {
-                        ForEach(TaskStatus.kanbanStatuses, id: \.self) { status in
-                            KanbanColumnView(
-                                status: status,
-                                tasks: viewModel.tasksForStatus(status),
-                                viewModel: viewModel,
-                                onCardTap: { task in editingTask = task }
-                            )
-                        }
+                        TaskEditView(
+                            viewModel: editVM,
+                            onDismiss: {
+                                viewModel.isEditing = false
+                                withAnimation(.easeInOut(duration: 0.25)) {
+                                    editViewModel = nil
+                                }
+                            }
+                        )
+                        .frame(width: 420)
+                        .transition(.move(edge: .trailing))
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
                 }
+                .animation(.easeInOut(duration: 0.25), value: editViewModel != nil)
             }
-        }
-        .sheet(item: $editingTask) { task in
-            TaskEditView(
-                viewModel: TaskEditViewModel(task: task, kanbanVM: viewModel),
-                onDismiss: { editingTask = nil }
-            )
-            .frame(minWidth: 500, minHeight: 500)
         }
         .sheet(isPresented: $showSettings) {
             CategorySettingsView(viewModel: viewModel)

@@ -10,6 +10,7 @@ final class TaskEditViewModel {
     var showDeleteConfirmation = false
     var showCompleteWithSubtasksConfirmation = false
     var memoEditMode = true
+    var memoText: String
 
     private let kanbanVM: KanbanViewModel
 
@@ -19,6 +20,7 @@ final class TaskEditViewModel {
         self.task = task
         self.kanbanVM = kanbanVM
         self.subtasks = kanbanVM.subtasks(for: task)
+        self.memoText = task.memo ?? ""
     }
 
     var hasIncompleteSubtasks: Bool {
@@ -26,6 +28,7 @@ final class TaskEditViewModel {
     }
 
     func save() {
+        task.memo = memoText.isEmpty ? nil : memoText
         let db = DatabaseManager.shared
         let taskCopy = task
         Task {
