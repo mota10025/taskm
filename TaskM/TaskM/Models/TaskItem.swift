@@ -1,9 +1,6 @@
 import Foundation
-import GRDB
 
-struct TaskItem: Identifiable, Codable, FetchableRecord, PersistableRecord, Sendable, Equatable {
-    static let databaseTableName = "tasks"
-
+struct TaskItem: Identifiable, Codable, Sendable, Equatable {
     var id: Int64?
     var name: String
     var status: String
@@ -37,9 +34,8 @@ struct TaskItem: Identifiable, Codable, FetchableRecord, PersistableRecord, Send
         set { priority = newValue?.rawValue }
     }
 
-    var taskCategory: TaskCategory? {
-        get { category.flatMap { TaskCategory(rawValue: $0) } }
-        set { category = newValue?.rawValue }
+    var knownCategory: KnownCategory? {
+        category.flatMap { KnownCategory(rawValue: $0) }
     }
 
     var isSubtask: Bool { parentTaskId != nil }

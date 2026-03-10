@@ -73,8 +73,8 @@ struct TaskEditView: View {
                                     .foregroundColor(.gray)
                                 Picker("", selection: $viewModel.task.category) {
                                     Text("なし").tag(nil as String?)
-                                    ForEach(TaskCategory.allCases, id: \.self) { c in
-                                        Text(c.rawValue).tag(c.rawValue as String?)
+                                    ForEach(viewModel.allCategories, id: \.self) { c in
+                                        Text(c).tag(c as String?)
                                     }
                                 }
                                 .labelsHidden()
@@ -237,21 +237,18 @@ struct TaskEditView: View {
             }
 
             if viewModel.memoEditMode {
-                TextEditor(text: Binding(
-                    get: { viewModel.task.memo ?? "" },
-                    set: { viewModel.task.memo = $0.isEmpty ? nil : $0 }
-                ))
+                TextEditor(text: $viewModel.memoText)
                 .font(.system(size: 13, design: .monospaced))
                 .scrollContentBackground(.hidden)
                 .padding(8)
                 .background(Color.white.opacity(0.05))
                 .cornerRadius(6)
                 .foregroundColor(.white)
-                .frame(minHeight: 120)
+                .frame(minHeight: 150, idealHeight: 250)
             } else {
-                if let memo = viewModel.task.memo, !memo.isEmpty {
+                if !viewModel.memoText.isEmpty {
                     ScrollView {
-                        Markdown(memo)
+                        Markdown(viewModel.memoText)
                             .markdownTheme(.gitHub)
                             .padding(8)
                     }

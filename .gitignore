@@ -28,5 +28,8 @@ tasks.db
 # Node.js
 node_modules/
 
+# Secrets
+TaskM/TaskM/Secrets.swift
+
 # Generated files
 tasks.json

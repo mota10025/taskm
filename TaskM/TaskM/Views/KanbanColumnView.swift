@@ -41,14 +41,18 @@ struct KanbanColumnView: View {
                         TaskCardView(
                             task: task,
                             subtasks: viewModel.subtasks(for: task),
-                            completedCount: viewModel.completedSubtaskCount(for: task)
+                            completedCount: viewModel.completedSubtaskCount(for: task),
+                            categoryColor: task.category.map { viewModel.categoryColor(for: $0) },
+                            categoryTextColor: task.category.map { viewModel.categoryTextColor(for: $0) }
                         )
                         .onTapGesture { onCardTap(task) }
                         .draggable(task.id ?? 0) {
                             TaskCardView(
                                 task: task,
                                 subtasks: viewModel.subtasks(for: task),
-                                completedCount: viewModel.completedSubtaskCount(for: task)
+                                completedCount: viewModel.completedSubtaskCount(for: task),
+                                categoryColor: task.category.map { viewModel.categoryColor(for: $0) },
+                                categoryTextColor: task.category.map { viewModel.categoryTextColor(for: $0) }
                             )
                             .frame(width: 240)
                             .opacity(0.8)
@@ -63,6 +67,7 @@ struct KanbanColumnView: View {
             if showAddForm {
                 TaskAddFormView(
                     status: status,
+                    categories: viewModel.allCategories,
                     onSave: { task in
                         viewModel.addTask(task)
                         showAddForm = false
