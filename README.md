@@ -1,18 +1,24 @@
 # TaskM
 
-ローカル完結のタスク管理システム。SQLite DBを中心に、macOSネイティブアプリ・CLI・Claude Desktop から操作できる。
+Cloudflare Workers + D1 をバックエンドとするタスク管理システム。macOSネイティブアプリ・CLI・Claude Desktop から操作できる。Googleカレンダー連携も搭載。
 
 ## 構成
 
 ```
 ~/workspace/task/
-├── tasks.db              # SQLiteデータベース（タスクデータ）
-├── task.sh               # CLI操作スクリプト
-├── TaskM/                # macOSネイティブアプリ（SwiftUI + GRDB）
+├── workers/              # Cloudflare Workers API（D1データベース）
+├── web/                  # Webフロントエンド
+├── TaskM/                # macOSネイティブアプリ（SwiftUI）
 ├── mcp-server/           # Claude Desktop用MCPサーバー（Node.js）
+├── task.sh               # CLI操作スクリプト（ローカルSQLite用）
 ├── CLAUDE.md             # Claude Code用の指示ファイル
 └── TaskApp_Requirements.md  # 詳細仕様書
 ```
+
+## ブランチ構成
+
+- `cloud` - デフォルトブランチ（API版 + Googleカレンダー統合）
+- `main` - オフライン版（ローカルSQLite）
 
 ## セットアップ
 
@@ -21,64 +27,31 @@
 - macOS
 - Xcode
 - Node.js (v18以上)
-- sqlite3 コマンド（macOS標準搭載）
 
-### Claude Code でセットアップ（推奨）
+### macOS アプリ
 
-このリポジトリを clone した後、Claude Code で以下のように依頼するだけでセットアップできます。
+1. Xcode で `TaskM/TaskM.xcodeproj` を開く
+2. `TaskM/TaskM/Secrets.swift` を作成（テンプレート）:
 
-**初回セットアップ:**
+```swift
+enum Secrets {
+    static let apiURL = "https://your-worker.workers.dev"
+    static let apiKey = "your-api-key"
+}
+```
 
-> 「このプロジェクトのセットアップをして。tasks.db の初期化、mcp-server の npm install、Claude Desktop への MCP Server 登録をお願い」
+3. ビルド & 実行
+4. アクセシビリティ権限を許可（システム設定 > プライバシーとセキュリティ）
+5. カレンダー機能を使う場合はカレンダー権限も許可
 
-**DBの初期化のみ:**
-
-> 「tasks.db がないので、CLAUDE.md のスキーマを見て初期化して」
-
-**MCP Server のセットアップのみ:**
-
-> 「mcp-server の npm install をして、Claude Desktop の設定ファイル（claude_desktop_config.json）に taskm の MCP Server を登録して。node のフルパスは which node で確認して」
-
-**macOS アプリのビルド:**
-
-> Xcode で `TaskM/TaskM.xcodeproj` を開いてビルド（SPM で GRDB と MarkdownUI が自動取得される）
-
-### 手動セットアップ
+### MCP Server（Claude Desktop 連携）
 
 ```bash
-# 1. リポジトリをクローン
-git clone https://github.com/mota10025/taskm.git ~/workspace/task
-cd ~/workspace/task
-
-# 2. データベースの初期化
-sqlite3 tasks.db <<'SQL'
-CREATE TABLE IF NOT EXISTS tasks (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  name TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT '未着手',
-  priority TEXT,
-  category TEXT,
-  due_date TEXT,
-  completed_date TEXT,
-  parent_task_id INTEGER,
-  tags TEXT,
-  memo TEXT,
-  created_at TEXT DEFAULT (datetime('now','localtime')),
-  updated_at TEXT DEFAULT (datetime('now','localtime')),
-  FOREIGN KEY (parent_task_id) REFERENCES tasks(id)
-);
-PRAGMA journal_mode=WAL;
-SQL
-
-# 3. MCP Server の依存パッケージをインストール
 cd mcp-server
 npm install
-cd ..
-
-# 4. Claude Desktop の設定ファイルに MCP Server を登録
-# ~/Library/Application Support/Claude/claude_desktop_config.json に以下を追加
-# ※ command には `which node` で得られるフルパスを指定
 ```
+
+Claude Desktop の設定ファイル（`~/Library/Application Support/Claude/claude_desktop_config.json`）に追加:
 
 ```json
 {
@@ -91,13 +64,8 @@ cd ..
 }
 ```
 
-```bash
-# 5. Claude Desktop を再起動
-
-# 6. macOS アプリ
-# Xcode で TaskM/TaskM.xcodeproj を開いてビルド
-# 初回起動時にアクセシビリティ権限を許可
-```
+- `command` には Node.js のフルパスを指定（`which node` で確認）
+- 設定後、Claude Desktop を再起動
 
 ## 3つのインターフェース
 
@@ -107,18 +75,12 @@ SwiftUI製のカンバンボードアプリ。メニューバーに常駐し、C
 
 - 4カラム表示（未着手 / 進行中 / 今日やる / 完了）
 - ドラッグ&ドロップでステータス変更
-- タスク編集（DatePicker、Markdownメモ、サブタスク管理）
-- 優先度・カテゴリでフィルタ
-- 外部からのDB変更をリアルタイム検知・反映
-
-**ビルド方法:**
-
-1. Xcode で `TaskM/TaskM.xcodeproj` を開く
-2. SPM で以下のパッケージを追加（初回のみ）
-   - [GRDB](https://github.com/groue/GRDB.swift) (Up to Next Major Version 7.0.0)
-   - [MarkdownUI](https://github.com/gonzalezreal/swift-markdown-ui)
-3. ビルド & 実行
-4. アクセシビリティ権限を許可（システム設定 > プライバシーとセキュリティ）
+- スライドパネルでタスク編集（Markdownメモ、サブタスク管理）
+- 優先度・カテゴリでフィルタ（カテゴリはAPIから動的取得）
+- カテゴリ管理（追加・色設定・削除）
+- Googleカレンダー週表示（EventKit経由、閲覧・作成・編集・削除）
+- サイドバータブでタスク/カレンダー切替
+- Cloudflare Workers API経由でデータ同期
 
 ### 2. CLI (task.sh)
 
@@ -136,37 +98,6 @@ SwiftUI製のカンバンボードアプリ。メニューバーに常駐し、C
 
 Claude Desktop アプリから自然言語でタスクを操作できる。
 
-**セットアップ:**
-
-Claude Code に以下を依頼するのが最も簡単:
-
-> 「mcp-server のセットアップをして。npm install して Claude Desktop の設定ファイルに登録して」
-
-手動で行う場合:
-
-```bash
-# 依存パッケージのインストール
-cd mcp-server
-npm install
-
-# Claude Desktop の設定に追加
-# ~/Library/Application Support/Claude/claude_desktop_config.json
-```
-
-```json
-{
-  "mcpServers": {
-    "taskm": {
-      "command": "/path/to/node",
-      "args": ["/path/to/workspace/task/mcp-server/index.js"]
-    }
-  }
-}
-```
-
-- `command` には Node.js のフルパスを指定（`which node` で確認）
-- 設定後、Claude Desktop を再起動
-
 **使い方（Claude Desktop で）:**
 
 - 「タスクを見せて」
@@ -176,15 +107,13 @@ npm install
 
 ## データベース
 
-- SQLite（`tasks.db`）にすべてのタスクデータを保存
-- WALモード（複数プロセスからの同時アクセスに対応）
-- `tasks.db-wal` と `tasks.db-shm` は自動生成されるファイル（削除しないこと）
-
-詳細なスキーマやカラー定義は [TaskApp_Requirements.md](TaskApp_Requirements.md) を参照。
+- Cloudflare D1（クラウド）をメインのデータソースとして使用
+- macOSアプリはREST API経由でD1にアクセス
+- MCP ServerはローカルSQLite（`tasks.db`）を使用
 
 ## 開発メモ
 
 - macOS アプリのソースコードを変更したら Xcode でビルド
 - MCP Server のコードを変更したら Claude Desktop を再起動
-- `task.sh` は変更なしでそのまま動作
-- すべてローカル完結（外部サーバー不要）
+- `Secrets.swift` はgitignore対象（APIキーを含むためコミット禁止）
+- Workers APIの変更は `wrangler deploy` でデプロイ
