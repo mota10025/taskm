@@ -24,6 +24,13 @@ enum AppColors {
         }
     }
 
+    // Sidebar
+    static let sidebarBackground = Color(hex: 0x141414)
+
+    // Calendar
+    static let calendarGridLine = Color.white.opacity(0.08)
+    static let calendarCurrentTimeLine = Color(hex: 0xEA4335)
+
     static func categoryColor(_ category: String) -> Color {
         if let known = KnownCategory(rawValue: category) {
             switch known {

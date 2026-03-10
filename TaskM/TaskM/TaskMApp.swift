@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var windowManager = WindowManager()
     private var hotKeyService: HotKeyService?
     private let viewModel = KanbanViewModel()
+    private let calendarViewModel = CalendarViewModel()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Dockアイコンを非表示
@@ -43,7 +44,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.menu = menu
 
         // パネル作成
-        let contentView = ContentView(viewModel: viewModel)
+        let contentView = ContentView(viewModel: viewModel, calendarViewModel: calendarViewModel)
         windowManager.createPanel(contentView: contentView)
 
         // Control 2回押しでトグル
