@@ -82,7 +82,6 @@ usage() {
   echo "  task.sh delete <id>                      タスク削除"
   echo "  task.sh show <id>                        タスク詳細"
   echo "  task.sh export                           JSONエクスポート"
-  echo "  task.sh board                            ブラウザでカンバンボード表示"
   exit 1
 }
 
@@ -227,31 +226,6 @@ auto_export() {
   cmd_export > "$dir/tasks.json"
 }
 
-cmd_board() {
-  local dir="$(dirname "$0")"
-  local json_data
-  json_data=$(cmd_export)
-  local out="$dir/board_view.html"
-  # board.htmlのloadTasks前にTASKS_DATAを埋め込んだHTMLを生成
-  # sedやawkへの直接展開を避け、テンプレート置換で安全に埋め込む
-  local script_tag="<script>const TASKS_DATA = ${json_data};</script>"
-  local tmpfile
-  tmpfile=$(mktemp)
-  # </head>の行を分割して、スクリプトタグを挿入
-  while IFS= read -r line; do
-    case "$line" in
-      *"</head>"*)
-        printf '%s\n' "${line%%</head>*}${script_tag}</head>${line#*</head>}"
-        ;;
-      *)
-        printf '%s\n' "$line"
-        ;;
-    esac
-  done < "$dir/board.html" > "$tmpfile"
-  mv "$tmpfile" "$out"
-  open "$out"
-}
-
 case "${1:-}" in
   list) shift; cmd_list "$@";;
   add) shift; cmd_add "$@";;
@@ -260,6 +234,5 @@ case "${1:-}" in
   delete) shift; cmd_delete "$@";;
   show) shift; cmd_show "$@";;
   export) shift; cmd_export "$@";;
-  board) shift; cmd_board "$@";;
   *) usage;;
 esac

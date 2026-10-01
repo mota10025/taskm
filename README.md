@@ -7,7 +7,7 @@
 | ブランチ | 説明 |
 |----------|------|
 | `main` | **オフライン版** — ローカルSQLite完結。外部サーバー不要 |
-| `cloud` | **クラウド版** — Cloudflare D1 + Workers API + Pages。どこからでもアクセス可能 |
+| `cloud` | **クラウド版** — Cloudflare D1 + Workers API。どこからでもアクセス可能 |
 
 ### main（オフライン版）
 
@@ -22,7 +22,6 @@
 - macOSアプリは Workers REST API 経由でアクセス
 - MCPサーバーは Workers REST API 経由でアクセス
 - Remote MCPサーバー搭載（OAuth 2.1認証付き）→ iPhone Claudeアプリ対応
-- Webカンバンボード（Cloudflare Pages）
 
 ## 構成（cloud ブランチ）
 
@@ -37,7 +36,6 @@
 │       ├── routes/       # REST APIルート
 │       ├── mcp/          # Remote MCPサーバー + OAuth認証
 │       └── utils/        # 共有ユーティリティ
-├── web/                  # Webカンバンボード（Cloudflare Pages）
 ├── CLAUDE.md             # Claude Code用の指示ファイル
 └── TaskApp_Requirements.md  # 詳細仕様書
 ```
@@ -49,7 +47,7 @@
 - macOS
 - Xcode
 - Node.js (v18以上)
-- Cloudflare アカウント（Workers / D1 / Pages / KV を使用）
+- Cloudflare アカウント（Workers / D1 / KV を使用）
 
 ### 1. Cloudflare Workers API
 
@@ -66,22 +64,7 @@ npx wrangler secret put API_KEY          # REST API認証キー
 npx wrangler secret put ALLOWED_EMAIL    # OAuth認証で許可するメールアドレス
 ```
 
-### 2. Webカンバンボード（Cloudflare Pages）
-
-```bash
-npx wrangler pages deploy web/ --project-name=taskm-web --branch=cloud
-```
-
-`web/config.js` を作成（gitignore対象）:
-
-```javascript
-const API_URL = location.hostname === "localhost"
-  ? "http://localhost:8787"
-  : "https://your-worker.workers.dev";
-const API_KEY = "your-api-key";
-```
-
-### 3. Claude Desktop MCP Server
+### 2. Claude Desktop MCP Server
 
 ```bash
 cd mcp-server
@@ -105,7 +88,7 @@ Claude Desktop の設定ファイル（`~/Library/Application Support/Claude/cla
 }
 ```
 
-### 4. macOS アプリ
+### 3. macOS アプリ
 
 1. `TaskM/TaskM/Secrets.swift` を作成（gitignore対象）:
 
@@ -120,7 +103,7 @@ Claude Desktop の設定ファイル（`~/Library/Application Support/Claude/cla
 3. ビルド & 実行（Archive でも動作）
 4. アクセシビリティ権限を許可（システム設定 > プライバシーとセキュリティ）
 
-### 5. iPhone Claude アプリ（Remote MCP）
+### 4. iPhone Claude アプリ（Remote MCP）
 
 1. [claude.ai](https://claude.ai) の Settings → Connectors → Add Custom Connector
 2. URL: `https://your-worker.workers.dev/mcp`
@@ -129,16 +112,7 @@ Claude Desktop の設定ファイル（`~/Library/Application Support/Claude/cla
 
 ## インターフェース
 
-### 1. Webカンバンボード
-
-Cloudflare Pagesでホストされるブラウザ向けカンバンボード。
-
-- 4カラム表示（未着手 / 進行中 / 今日やる / 完了）
-- ドラッグ&ドロップでステータス変更
-- タスク編集・追加・削除
-- 優先度・カテゴリでフィルタ
-
-### 2. macOS アプリ (TaskM)
+### 1. macOS アプリ (TaskM)
 
 SwiftUI製のカンバンボードアプリ。メニューバーに常駐し、Control キー2回押しで表示/非表示。Workers API経由でD1にアクセス。
 
@@ -146,9 +120,9 @@ SwiftUI製のカンバンボードアプリ。メニューバーに常駐し、C
 - ドラッグ&ドロップでステータス変更
 - タスク編集（DatePicker、Markdownメモ、サブタスク管理）
 - 優先度・カテゴリでフィルタ
-- 5秒間隔のポーリングでデータ同期
+- 起動時・ウィンドウ表示時・更新ボタンでデータ取得（常時ポーリングなし）
 
-### 3. CLI (task.sh)
+### 2. CLI (task.sh)
 
 ```bash
 ./task.sh list                    # 一覧（未完了のみ）
@@ -160,7 +134,7 @@ SwiftUI製のカンバンボードアプリ。メニューバーに常駐し、C
 ./task.sh delete <id>             # 削除
 ```
 
-### 4. Claude Desktop (MCP Server)
+### 3. Claude Desktop (MCP Server)
 
 Claude Desktop アプリから自然言語でタスクを操作。Workers API経由でD1にアクセス。
 
@@ -171,7 +145,7 @@ Claude Desktop アプリから自然言語でタスクを操作。Workers API経
 - 「タスク15を完了にして」
 - 「業務委託のタスク一覧を見せて」
 
-### 5. iPhone Claude アプリ (Remote MCP)
+### 4. iPhone Claude アプリ (Remote MCP)
 
 Remote MCPサーバー（OAuth 2.1認証付き）経由で、iPhoneのClaudeアプリからタスクを操作。Claude Desktopと同じ6つのツールが利用可能。
 
@@ -192,34 +166,9 @@ Remote MCPサーバー（OAuth 2.1認証付き）経由で、iPhoneのClaudeア�
 │ (Remote MCP)    │     (OAuth 2.1)       │  /mcp                │
 └─────────────────┘                       └──────────────────────┘
 
-┌─────────────────┐     Zero Trust        ┌──────────────────────┐
-│ ブラウザ         │ ──────────────────→  │  Cloudflare Pages    │
-│ (Webカンバン)    │     (Cloudflare      │  (静的HTML/JS)        │
-└─────────────────┘      Access)          └──────────────────────┘
 ```
 
-### 1. Webカンバンボード — Cloudflare Zero Trust
-
-Cloudflare Access（Zero Trust）でPages全体を保護し、許可されたユーザーのみアクセス可能にする。
-
-**設定手順:**
-
-1. [Cloudflare Zero Trust ダッシュボード](https://one.dash.cloudflare.com/) にアクセス
-2. **Access** → **Applications** → **Add an application**
-3. **Self-hosted** を選択
-4. 設定:
-   - Application name: `TaskM Web（好きな名称）`
-   - Application domain: `your-project.pages.dev`
-   - Session Duration: 任意（例: 24時間）
-5. **Policy** を追加:
-   - Policy name: `Allow owner`
-   - Action: **Allow**
-   - Include: **Emails** → 自分のメールアドレスを入力
-6. **Authentication** → **One-time PIN**（メールにワンタイムPINが届く方式）
-
-これにより、`your-project.pages.dev` へのアクセス時にCloudflare Accessのログイン画面が表示され、許可されたメールアドレスでのみ閲覧可能になる。
-
-### 2. REST API — APIキー認証
+### 1. REST API — APIキー認証
 
 macOSアプリとClaude Desktop MCPサーバーからのアクセスは `X-API-Key` ヘッダーで認証。
 
@@ -238,9 +187,8 @@ npx wrangler secret put API_KEY
 | --- | --- |
 | macOSアプリ | `TaskM/TaskM/Secrets.swift`（gitignore対象） |
 | Claude Desktop MCP | `claude_desktop_config.json` の `env.TASKM_API_KEY` |
-| Webカンバンボード | `web/config.js`（gitignore対象） |
 
-### 3. Remote MCPサーバー — OAuth 2.1 + PKCE
+### 2. Remote MCPサーバー — OAuth 2.1 + PKCE
 
 iPhoneのClaudeアプリからのアクセスはOAuth 2.1で認証。
 
@@ -274,7 +222,7 @@ cd workers
 npx wrangler secret put ALLOWED_EMAIL    # 許可するメールアドレス（1つ）
 ```
 
-### 4. Claude.ai での Remote MCP 接続設定
+### 3. Claude.ai での Remote MCP 接続設定
 
 1. PCブラウザで [claude.ai](https://claude.ai) にアクセス
 2. **Settings** → **Connectors** → **Add Custom Connector**
@@ -298,7 +246,6 @@ npx wrangler secret put ALLOWED_EMAIL    # 許可するメールアドレス（1
 
 ### セキュリティに関する注意事項
 
-- `web/config.js` はAPIキーを含むため `.gitignore` 対象。リポジトリにコミットしないこと
 - Workers のSecret（`API_KEY`, `ALLOWED_EMAIL`）はCloudflareダッシュボードまたは `wrangler secret` で管理
 - macOSアプリのAPIキーは `TaskM/TaskM/Secrets.swift` に記載（gitignore対象）
 
@@ -318,7 +265,6 @@ npx wrangler secret put ALLOWED_EMAIL    # 許可するメールアドレス（1
 | REST API | Cloudflare Workers + Hono |
 | Remote MCP | MCP SDK + WebStandard Transport |
 | OAuth認証 | OAuth 2.1 + PKCE + KV |
-| Webフロント | Cloudflare Pages（静的HTML/JS） |
 | macOSアプリ | SwiftUI + URLSession |
 | ローカルMCP | Node.js + MCP SDK |
 | CLI | Bash + sqlite3 |

@@ -5,6 +5,9 @@ final class WindowManager {
     private var panel: NSPanel?
     private var isVisible = false
 
+    /// パネルが表示されるたびに呼ばれる
+    var onShow: (() -> Void)?
+
     func createPanel(contentView: some View) {
         let panel = NSPanel(
             contentRect: NSRect(x: 0, y: 0, width: 1200, height: 700),
@@ -38,6 +41,7 @@ final class WindowManager {
         } else {
             panel.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
+            onShow?()
         }
         isVisible.toggle()
     }

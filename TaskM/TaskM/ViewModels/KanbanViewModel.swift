@@ -16,7 +16,7 @@ final class KanbanViewModel {
     var selectedCategories: Set<String> = []
     var isFilterActive: Bool { !selectedPriorities.isEmpty || !selectedCategories.isEmpty }
 
-    // 編集中はポーリングを一時停止
+    // 編集中は自動再取得（ウィンドウ表示時など）をスキップ
     var isEditing = false
 
     // DBのcategoriesテーブルに登録されているカテゴリのみ
@@ -24,15 +24,30 @@ final class KanbanViewModel {
         categories.map(\.name)
     }
 
-    private var pollingTask: Task<Void, Never>?
+    // 短時間に連続して再取得しないためのスロットル
+    private var lastLoadedAt: Date = .distantPast
+    private let minRefreshInterval: TimeInterval = 2
 
     init() {
         loadTasks()
-        startPolling()
+    }
+
+    /// ウィンドウ表示時・アプリがフロントに来たときの自動再取得。
+    /// 編集中、または直前に取得したばかりならスキップする。
+    func refreshIfNeeded() {
+        guard !isEditing else { return }
+        guard Date().timeIntervalSince(lastLoadedAt) >= minRefreshInterval else { return }
+        loadTasks()
+    }
+
+    /// 更新ボタン用。条件に関係なく必ず再取得する。
+    func refresh() {
+        loadTasks()
     }
 
     func loadTasks() {
         isLoading = true
+        lastLoadedAt = Date()
         let db = DatabaseManager.shared
         Task {
             do {
@@ -123,17 +138,6 @@ final class KanbanViewModel {
                 self.loadTasks()
             } catch {
                 self.errorMessage = error.localizedDescription
-            }
-        }
-    }
-
-    private func startPolling() {
-        pollingTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(5))
-                if !Task.isCancelled && !self.isEditing {
-                    self.loadTasks()
-                }
             }
         }
     }

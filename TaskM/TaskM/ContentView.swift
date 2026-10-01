@@ -66,6 +66,16 @@ struct ContentView: View {
                     }
                     .buttonStyle(.plain)
 
+                    Button(action: { viewModel.refresh() }) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14))
+                            .foregroundColor(.gray)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(viewModel.isLoading)
+                    .help("最新のタスクを取得")
+                    .keyboardShortcut("r", modifiers: .command)
+
                     Spacer()
                     if let error = viewModel.errorMessage {
                         Text(error)

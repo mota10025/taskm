@@ -47,10 +47,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let contentView = ContentView(viewModel: viewModel, calendarViewModel: calendarViewModel)
         windowManager.createPanel(contentView: contentView)
 
+        // パネル表示時にタスクを再取得
+        windowManager.onShow = { [weak self] in
+            self?.viewModel.refreshIfNeeded()
+        }
+
         // Control 2回押しでトグル
         hotKeyService = HotKeyService { [weak self] in
             self?.windowManager.toggle()
         }
+    }
+
+    // アプリがフロントに来たときにタスクを再取得
+    func applicationDidBecomeActive(_ notification: Notification) {
+        viewModel.refreshIfNeeded()
     }
 
     @objc private func toggleWindow() {
