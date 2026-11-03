@@ -62,6 +62,7 @@ npx wrangler deploy
 ```bash
 npx wrangler secret put API_KEY          # REST API認証キー
 npx wrangler secret put ALLOWED_EMAIL    # OAuth認証で許可するメールアドレス
+npx wrangler secret put AUTH_PASSWORD    # OAuth認証画面のパスワード
 ```
 
 ### 2. Claude Desktop MCP Server
@@ -107,7 +108,7 @@ Claude Desktop の設定ファイル（`~/Library/Application Support/Claude/cla
 
 1. [claude.ai](https://claude.ai) の Settings → Connectors → Add Custom Connector
 2. URL: `https://your-worker.workers.dev/mcp`
-3. OAuth認証画面でメールアドレスを入力して認可
+3. OAuth認証画面でメールアドレスとパスワード（Worker の `AUTH_PASSWORD` secret）を入力して認可
 4. iPhoneのClaudeアプリに自動同期
 
 ## インターフェース
@@ -220,6 +221,7 @@ iPhoneのClaudeアプリからのアクセスはOAuth 2.1で認証。
 ```bash
 cd workers
 npx wrangler secret put ALLOWED_EMAIL    # 許可するメールアドレス（1つ）
+npx wrangler secret put AUTH_PASSWORD    # 認可画面のパスワード
 ```
 
 ### 3. Claude.ai での Remote MCP 接続設定

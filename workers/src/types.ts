@@ -3,6 +3,7 @@ export type Bindings = {
   API_KEY: string;
   OAUTH_KV: KVNamespace;
   ALLOWED_EMAIL: string;
+  AUTH_PASSWORD: string; // OAuth認可画面のパスワード（wrangler secret）
   ALLOWED_ORIGINS?: string; // カンマ区切りの許可オリジン
 };
 

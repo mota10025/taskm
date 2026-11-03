@@ -1,9 +1,13 @@
 import type { Bindings } from "../types";
 
+// 認可画面の総当たり対策（IP単位）
+const MAX_AUTH_FAILURES = 5;
+const AUTH_LOCK_SECONDS = 15 * 60;
+
 /**
  * OAuth認可ハンドラ
- * /authorize にリダイレクトされたとき、メールアドレスで認証する簡易フォームを表示。
- * 許可されたメールアドレスのみ認可コードを発行する。
+ * /authorize にリダイレクトされたとき、メールアドレスとパスワードで認証する簡易フォームを表示。
+ * 許可されたメールアドレスと正しいパスワードの組み合わせのみ認可コードを発行する。
  */
 export const authHandler = {
   fetch: async (request: Request, env: Bindings): Promise<Response> => {
@@ -22,6 +26,7 @@ export const authHandler = {
     if (url.pathname === "/authorize" && request.method === "POST") {
       const formData = await request.formData();
       const email = (formData.get("email") as string || "").trim().toLowerCase();
+      const password = formData.get("password") as string || "";
 
       // OAuthパラメータを復元
       const clientId = formData.get("client_id") as string;
@@ -31,21 +36,39 @@ export const authHandler = {
       const codeChallengeMethod = formData.get("code_challenge_method") as string;
       const scope = formData.get("scope") as string;
 
-      // メールアドレス検証
+      const retryParams = new URLSearchParams({
+        client_id: clientId || "",
+        redirect_uri: redirectUri || "",
+        state: state || "",
+        code_challenge: codeChallenge || "",
+        code_challenge_method: codeChallengeMethod || "",
+        scope: scope || "",
+      });
+
+      // 失敗回数が上限に達したIPはロック
+      const ip = request.headers.get("CF-Connecting-IP") || "unknown";
+      const failKey = `auth_fail:${ip}`;
+      const failures = parseInt(await env.OAUTH_KV.get(failKey) || "0", 10);
+      if (failures >= MAX_AUTH_FAILURES) {
+        return new Response(renderAuthPage(retryParams, "試行回数が多すぎます。しばらくしてから再度お試しください。"), {
+          status: 429,
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        });
+      }
+
+      // メールアドレス・パスワード検証（パスワード未設定なら常に拒否）
       const allowedEmail = (env.ALLOWED_EMAIL || "").toLowerCase();
-      if (!email || email !== allowedEmail) {
-        return new Response(renderAuthPage(new URLSearchParams({
-          client_id: clientId || "",
-          redirect_uri: redirectUri || "",
-          state: state || "",
-          code_challenge: codeChallenge || "",
-          code_challenge_method: codeChallengeMethod || "",
-          scope: scope || "",
-        }), "このメールアドレスは許可されていません。"), {
+      const emailOk = !!email && email === allowedEmail;
+      const passwordOk = !!env.AUTH_PASSWORD && await safeEqual(password, env.AUTH_PASSWORD);
+      if (!emailOk || !passwordOk) {
+        await env.OAUTH_KV.put(failKey, String(failures + 1), { expirationTtl: AUTH_LOCK_SECONDS });
+        return new Response(renderAuthPage(retryParams, "メールアドレスまたはパスワードが正しくありません。"), {
           status: 403,
           headers: { "Content-Type": "text/html; charset=utf-8" },
         });
       }
+
+      await env.OAUTH_KV.delete(failKey);
 
       // 認可コード生成
       const code = crypto.randomUUID();
@@ -236,6 +259,16 @@ async function verifyPKCE(verifier: string, challenge: string, method: string): 
   return base64 === challenge;
 }
 
+// 長さの違いも漏らさないよう、ハッシュ同士をタイミング安全に比較する
+async function safeEqual(a: string, b: string): Promise<boolean> {
+  const encoder = new TextEncoder();
+  const [ha, hb] = await Promise.all([
+    crypto.subtle.digest("SHA-256", encoder.encode(a)),
+    crypto.subtle.digest("SHA-256", encoder.encode(b)),
+  ]);
+  return crypto.subtle.timingSafeEqual(ha, hb);
+}
+
 export async function validateAccessToken(token: string, env: Bindings): Promise<string | null> {
   const stored = await env.OAUTH_KV.get(`access_token:${token}`);
   if (!stored) return null;
@@ -256,7 +289,7 @@ function renderAuthPage(params: URLSearchParams, errorMsg?: string): string {
     h1 { text-align: center; color: #7bc8a4; margin-bottom: 0.5rem; }
     p { text-align: center; color: #9b9b9b; font-size: 0.9rem; }
     .error { color: #e74c3c; text-align: center; margin: 1rem 0; }
-    input[type="email"] { width: 100%; padding: 0.8rem; border: 1px solid #333; border-radius: 8px; background: #0f3460; color: #e0e0e0; font-size: 1rem; margin: 1rem 0; box-sizing: border-box; }
+    input[type="email"], input[type="password"] { width: 100%; padding: 0.8rem; border: 1px solid #333; border-radius: 8px; background: #0f3460; color: #e0e0e0; font-size: 1rem; margin: 1rem 0; box-sizing: border-box; }
     button { width: 100%; padding: 0.8rem; background: #7bc8a4; color: #1a1a2e; border: none; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; }
     button:hover { background: #5fb88a; }
   </style>
@@ -268,6 +301,7 @@ function renderAuthPage(params: URLSearchParams, errorMsg?: string): string {
     ${errorMsg ? `<div class="error">${errorMsg}</div>` : ""}
     <form method="POST" action="/authorize">
       <input type="email" name="email" placeholder="メールアドレス" required autofocus>
+      <input type="password" name="password" placeholder="パスワード" required autocomplete="current-password">
       <input type="hidden" name="client_id" value="${escapeHtml(params.get("client_id") || "")}">
       <input type="hidden" name="redirect_uri" value="${escapeHtml(params.get("redirect_uri") || "")}">
       <input type="hidden" name="state" value="${escapeHtml(params.get("state") || "")}">
