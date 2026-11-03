@@ -60,3 +60,18 @@ tasks (
 - ユーザーに「タスクを見せて」と言われたら `./task.sh list` を実行して結果を整形表示する
 - タスクのステータス変更は `./task.sh update <id> --status ステータス名` を使う
 - 完了にする場合は `./task.sh done <id>` を使う（completed_dateが自動設定される）
+
+## Git操作時のGitHubアカウント
+
+このリポジトリ（mota10025/taskm）を操作するときは、GitHubアカウント **mota10025** を使う。
+このMacには別アカウント（miwa-takyoshi-gc）も登録されているが、このリポジトリへの権限がない。
+
+- `origin` は SSH（`git@github.com:mota10025/taskm.git`）にしてある。SSH鍵は mota10025 で認証されるので、push/pull はそのままでよい
+- HTTPS に戻さない。Keychain に保存された HTTPS 資格情報は miwa-takyoshi-gc のもので、push が 403 になる
+- `gh` コマンド（PR作成など）を使う前に、アクティブアカウントを切り替える:
+
+```bash
+gh auth switch --user mota10025
+```
+
+- 作業が終わったら必要に応じて元に戻す: `gh auth switch --user miwa-takyoshi-gc`
